@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -44,5 +45,16 @@ class TransactionItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function scopeTopSelling(Builder $query, int $limit = 5): Builder
+    {
+        return $query
+            ->select('product_id', 'name')
+            ->selectRaw('SUM(quantity) as quantity')
+            ->selectRaw('SUM(line_total) as revenue')
+            ->groupBy('product_id', 'name')
+            ->orderByDesc('quantity')
+            ->limit($limit);
     }
 }
