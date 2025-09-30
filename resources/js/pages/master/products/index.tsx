@@ -20,6 +20,11 @@ import { Head, useForm, usePage } from '@inertiajs/react';
 import { ChangeEvent, FormEvent, useMemo, useState } from 'react';
 import { Download, Edit, Image as ImageIcon, PlusCircle, Trash2, Upload } from 'lucide-react';
 
+interface CategorySummary {
+    id: number;
+    name: string;
+}
+
 interface ProductSummary {
     id: number;
     barcode: string;
@@ -30,10 +35,12 @@ interface ProductSummary {
     image_url: string | null;
     created_at?: string | null;
     updated_at?: string | null;
+    categories: CategorySummary[];
 }
 
 interface ProductsPageProps {
     products: ProductSummary[];
+    availableCategories: CategorySummary[];
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -56,7 +63,36 @@ const formatPrice = (price: string | number): string => {
     });
 };
 
-export default function ProductsIndex({ products }: ProductsPageProps) {
+const extractCategoryError = (
+    errors: Record<string, string | undefined>,
+): string | undefined => {
+    if (errors.category_ids) {
+        return errors.category_ids;
+    }
+
+    const nestedError = Object.entries(errors).find(([key]) =>
+        key.startsWith('category_ids.'),
+    );
+
+    return nestedError?.[1];
+};
+
+const updateCategorySelection = (
+    selectedIds: number[],
+    categoryId: number,
+    shouldSelect: boolean,
+): number[] => {
+    if (shouldSelect) {
+        return Array.from(new Set([...selectedIds, categoryId]));
+    }
+
+    return selectedIds.filter((id) => id !== categoryId);
+};
+
+export default function ProductsIndex({
+    products,
+    availableCategories,
+}: ProductsPageProps) {
     const { flash } = usePage<SharedData>().props;
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [productBeingEdited, setProductBeingEdited] =
@@ -68,12 +104,14 @@ export default function ProductsIndex({ products }: ProductsPageProps) {
         stock: string;
         price: string;
         image: File | null;
+        category_ids: number[];
     }>({
         barcode: '',
         name: '',
         stock: '0',
         price: '0.00',
         image: null,
+        category_ids: [],
     });
 
     const editForm = useForm<{
@@ -83,6 +121,7 @@ export default function ProductsIndex({ products }: ProductsPageProps) {
         price: string;
         image: File | null;
         remove_image: boolean;
+        category_ids: number[];
     }>({
         barcode: '',
         name: '',
@@ -90,6 +129,7 @@ export default function ProductsIndex({ products }: ProductsPageProps) {
         price: '0.00',
         image: null,
         remove_image: false,
+        category_ids: [],
     });
 
     const importForm = useForm<{
@@ -113,6 +153,7 @@ export default function ProductsIndex({ products }: ProductsPageProps) {
                 price: product.price.toString(),
                 image: null,
                 remove_image: false,
+                category_ids: product.categories.map((category) => category.id),
             }));
             editForm.clearErrors();
             return;
@@ -124,6 +165,13 @@ export default function ProductsIndex({ products }: ProductsPageProps) {
     };
 
     const totalProducts = useMemo(() => products.length, [products.length]);
+
+    const createCategoryError = extractCategoryError(
+        createForm.errors as Record<string, string | undefined>,
+    );
+    const editCategoryError = extractCategoryError(
+        editForm.errors as Record<string, string | undefined>,
+    );
 
     const handleCreateSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -189,6 +237,32 @@ export default function ProductsIndex({ products }: ProductsPageProps) {
         importForm.setData('file', event.target.files?.[0] ?? null);
     };
 
+    const handleCreateCategoryToggle = (categoryId: number) => (
+        checked: boolean | 'indeterminate',
+    ) => {
+        createForm.setData((data) => ({
+            ...data,
+            category_ids: updateCategorySelection(
+                data.category_ids,
+                categoryId,
+                checked === true,
+            ),
+        }));
+    };
+
+    const handleEditCategoryToggle = (categoryId: number) => (
+        checked: boolean | 'indeterminate',
+    ) => {
+        editForm.setData((data) => ({
+            ...data,
+            category_ids: updateCategorySelection(
+                data.category_ids,
+                categoryId,
+                checked === true,
+            ),
+        }));
+    };
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Products" />
@@ -217,7 +291,7 @@ export default function ProductsIndex({ products }: ProductsPageProps) {
                                     <h2 className="text-lg font-semibold">Create product</h2>
                                 </div>
                                 <p className="text-sm text-muted-foreground">
-                                    Add a new item to your catalogue with barcode, stock level, price and optional image.
+                                    Add a new item to your catalogue with barcode, stock level, price, optional image and categories.
                                 </p>
                             </header>
 
@@ -286,6 +360,35 @@ export default function ProductsIndex({ products }: ProductsPageProps) {
                                 </div>
 
                                 <div className="space-y-2">
+                                    <Label>Categories</Label>
+                                    {availableCategories.length > 0 ? (
+                                        <div className="grid gap-2">
+                                            {availableCategories.map((category) => (
+                                                <label
+                                                    key={category.id}
+                                                    htmlFor={`create-category-${category.id}`}
+                                                    className="flex items-center gap-2 text-sm"
+                                                >
+                                                    <Checkbox
+                                                        id={`create-category-${category.id}`}
+                                                        checked={createForm.data.category_ids.includes(
+                                                            category.id,
+                                                        )}
+                                                        onCheckedChange={handleCreateCategoryToggle(category.id)}
+                                                    />
+                                                    <span>{category.name}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground">
+                                            No categories yet. Use the import tool or export file to manage categories in bulk.
+                                        </p>
+                                    )}
+                                    <InputError message={createCategoryError} />
+                                </div>
+
+                                <div className="space-y-2">
                                     <Label htmlFor="product-image">Image</Label>
                                     <Input
                                         id="product-image"
@@ -310,7 +413,7 @@ export default function ProductsIndex({ products }: ProductsPageProps) {
                                     <h2 className="text-lg font-semibold">Import / Export</h2>
                                 </div>
                                 <p className="text-sm text-muted-foreground">
-                                    Use spreadsheet files with headers <Badge variant="secondary">barcode</Badge>, <Badge variant="secondary">name</Badge>, <Badge variant="secondary">stock</Badge>, <Badge variant="secondary">price</Badge> and optional <Badge variant="secondary">image_path</Badge> to bulk manage products.
+                                    Use spreadsheet files with headers <Badge variant="secondary">barcode</Badge>, <Badge variant="secondary">name</Badge>, <Badge variant="secondary">stock</Badge>, <Badge variant="secondary">price</Badge>, optional <Badge variant="secondary">image_path</Badge> and optional <Badge variant="secondary">categories</Badge> (comma, semicolon or pipe separated) to bulk manage products.
                                 </p>
                             </header>
 
@@ -370,13 +473,14 @@ export default function ProductsIndex({ products }: ProductsPageProps) {
                         </header>
 
                         <div className="overflow-x-auto">
-                            <table className="w-full min-w-[640px] text-sm">
+                            <table className="w-full min-w-[700px] text-sm">
                                 <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                                     <tr>
                                         <th className="px-3 py-2">Barcode</th>
                                         <th className="px-3 py-2">Name</th>
                                         <th className="px-3 py-2 text-right">Stock</th>
                                         <th className="px-3 py-2 text-right">Price</th>
+                                        <th className="px-3 py-2">Categories</th>
                                         <th className="px-3 py-2">Image</th>
                                         <th className="px-3 py-2 text-right">Actions</th>
                                     </tr>
@@ -385,7 +489,7 @@ export default function ProductsIndex({ products }: ProductsPageProps) {
                                     {products.length === 0 ? (
                                         <tr>
                                             <td
-                                                colSpan={6}
+                                                colSpan={7}
                                                 className="px-3 py-6 text-center text-sm text-muted-foreground"
                                             >
                                                 No products yet. Use the form on the left to add your first item or import from a spreadsheet.
@@ -401,6 +505,19 @@ export default function ProductsIndex({ products }: ProductsPageProps) {
                                                 <td className="px-3 py-3">{product.name}</td>
                                                 <td className="px-3 py-3 text-right">{product.stock.toLocaleString()}</td>
                                                 <td className="px-3 py-3 text-right">{formatPrice(product.price)}</td>
+                                                <td className="px-3 py-3">
+                                                    {product.categories.length > 0 ? (
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {product.categories.map((category) => (
+                                                                <Badge key={category.id} variant="secondary">
+                                                                    {category.name}
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <Badge variant="outline">Uncategorised</Badge>
+                                                    )}
+                                                </td>
                                                 <td className="px-3 py-3">
                                                     {product.image_url ? (
                                                         <div className="flex items-center gap-2">
@@ -518,6 +635,37 @@ export default function ProductsIndex({ products }: ProductsPageProps) {
                                                                             />
                                                                             <InputError message={editForm.errors.price} />
                                                                         </div>
+                                                                    </div>
+
+                                                                    <div className="space-y-2">
+                                                                        <Label>Categories</Label>
+                                                                        {availableCategories.length > 0 ? (
+                                                                            <div className="grid gap-2">
+                                                                                {availableCategories.map((category) => (
+                                                                                    <label
+                                                                                        key={category.id}
+                                                                                        htmlFor={`edit-category-${category.id}`}
+                                                                                        className="flex items-center gap-2 text-sm"
+                                                                                    >
+                                                                                        <Checkbox
+                                                                                            id={`edit-category-${category.id}`}
+                                                                                            checked={editForm.data.category_ids.includes(
+                                                                                                category.id,
+                                                                                            )}
+                                                                                            onCheckedChange={handleEditCategoryToggle(
+                                                                                                category.id,
+                                                                                            )}
+                                                                                        />
+                                                                                        <span>{category.name}</span>
+                                                                                    </label>
+                                                                                ))}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <p className="text-sm text-muted-foreground">
+                                                                                No categories available yet. Import a spreadsheet to create them automatically.
+                                                                            </p>
+                                                                        )}
+                                                                        <InputError message={editCategoryError} />
                                                                     </div>
 
                                                                     <div className="space-y-2">
