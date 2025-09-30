@@ -38,6 +38,8 @@ class UpdateProductRequest extends FormRequest
             'price' => ['required', 'numeric', 'min:0'],
             'image' => ['nullable', 'image', 'max:5120'],
             'remove_image' => ['sometimes', 'boolean'],
+            'category_ids' => ['sometimes', 'array'],
+            'category_ids.*' => ['integer', Rule::exists('categories', 'id')],
         ];
     }
 }

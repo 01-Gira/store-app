@@ -2,6 +2,7 @@
 
 namespace App\Imports;
 
+use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -39,7 +40,7 @@ class ProductsImport implements ToCollection, WithHeadingRow, SkipsEmptyRows
                 ? Str::of($imagePath)->trim()->value()
                 : null;
 
-            Product::updateOrCreate(
+            $product = Product::updateOrCreate(
                 ['barcode' => $barcode],
                 [
                     'name' => $name,
@@ -49,6 +50,11 @@ class ProductsImport implements ToCollection, WithHeadingRow, SkipsEmptyRows
                 ],
             );
 
+            if ($row->has('categories')) {
+                $categoryIds = $this->syncCategories($row->get('categories'));
+                $product->categories()->sync($categoryIds);
+            }
+
             $this->imported++;
         }
     }
@@ -56,5 +62,29 @@ class ProductsImport implements ToCollection, WithHeadingRow, SkipsEmptyRows
     public function importedCount(): int
     {
         return $this->imported;
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function syncCategories(mixed $rawCategories): array
+    {
+        if (!is_string($rawCategories)) {
+            return [];
+        }
+
+        $segments = preg_split('/[|,;]+/', $rawCategories);
+
+        return collect($segments ?: [])
+            ->map(fn (mixed $segment) => is_string($segment) ? trim($segment) : null)
+            ->filter()
+            ->unique()
+            ->map(function (string $name): int {
+                $category = Category::firstOrCreate(['name' => $name]);
+
+                return $category->id;
+            })
+            ->values()
+            ->all();
     }
 }

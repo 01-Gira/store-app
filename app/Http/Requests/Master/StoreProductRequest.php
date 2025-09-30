@@ -28,6 +28,8 @@ class StoreProductRequest extends FormRequest
             'stock' => ['required', 'integer', 'min:0'],
             'price' => ['required', 'numeric', 'min:0'],
             'image' => ['nullable', 'image', 'max:5120'],
+            'category_ids' => ['nullable', 'array'],
+            'category_ids.*' => ['integer', Rule::exists('categories', 'id')],
         ];
     }
 }
