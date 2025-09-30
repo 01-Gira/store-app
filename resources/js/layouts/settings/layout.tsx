@@ -6,11 +6,11 @@ import { edit as editAppearance } from '@/routes/appearance';
 import { edit as editPassword } from '@/routes/password';
 import { edit } from '@/routes/profile';
 import { show } from '@/routes/two-factor';
-import { type NavItem } from '@/types';
-import { Link } from '@inertiajs/react';
+import { type NavItem, type SharedData } from '@/types';
+import { Link, usePage } from '@inertiajs/react';
 import { type PropsWithChildren } from 'react';
 
-const sidebarNavItems: NavItem[] = [
+const baseSidebarNavItems: NavItem[] = [
     {
         title: 'Profile',
         href: edit(),
@@ -34,12 +34,24 @@ const sidebarNavItems: NavItem[] = [
 ];
 
 export default function SettingsLayout({ children }: PropsWithChildren) {
+    const { auth } = usePage<SharedData>().props;
+    const canManageSettings = auth.user?.permissions?.includes('manage settings');
+    const sidebarNavItems = [...baseSidebarNavItems];
+
+    if (canManageSettings) {
+        sidebarNavItems.push({
+            title: 'Store',
+            href: '/settings/store',
+            icon: null,
+        });
+    }
+
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+
     // When server-side rendering, we only render the layout on the client...
     if (typeof window === 'undefined') {
         return null;
     }
-
-    const currentPath = window.location.pathname;
 
     return (
         <div className="px-4 py-6">

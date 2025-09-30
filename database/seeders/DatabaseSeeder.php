@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\StoreSetting;
 use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -31,6 +32,7 @@ class DatabaseSeeder extends Seeder
             'manage roles',
             'manage permissions',
             'manage users',
+            'manage settings',
         ])->each(static function (string $name): void {
             Permission::firstOrCreate([
                 'name' => $name,
@@ -48,5 +50,7 @@ class DatabaseSeeder extends Seeder
         if (! $user->hasRole($administratorRole->name)) {
             $user->assignRole($administratorRole);
         }
+
+        StoreSetting::current();
     }
 }
