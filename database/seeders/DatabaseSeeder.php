@@ -30,6 +30,7 @@ class DatabaseSeeder extends Seeder
         collect([
             'manage roles',
             'manage permissions',
+            'manage users',
         ])->each(static function (string $name): void {
             Permission::firstOrCreate([
                 'name' => $name,
