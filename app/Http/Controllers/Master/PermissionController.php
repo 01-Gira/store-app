@@ -20,7 +20,7 @@ class PermissionController extends Controller implements HasMiddleware
      *
      * @var array<int, string>
      */
-    private const PROTECTED_PERMISSIONS = ['manage roles', 'manage permissions'];
+    private const PROTECTED_PERMISSIONS = ['manage roles', 'manage permissions', 'manage users'];
 
     /**
      * Get the middleware that should be assigned to the controller.
