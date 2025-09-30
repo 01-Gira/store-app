@@ -1,0 +1,607 @@
+import InputError from '@/components/input-error';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import AppLayout from '@/layouts/app-layout';
+import { type BreadcrumbItem, type SharedData } from '@/types';
+import { Head, useForm, usePage } from '@inertiajs/react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import { Download, Edit, Image as ImageIcon, PlusCircle, Trash2, Upload } from 'lucide-react';
+
+interface ProductSummary {
+    id: number;
+    barcode: string;
+    name: string;
+    stock: number;
+    price: string | number;
+    image_path: string | null;
+    image_url: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+}
+
+interface ProductsPageProps {
+    products: ProductSummary[];
+}
+
+const breadcrumbs: BreadcrumbItem[] = [
+    {
+        title: 'Products',
+        href: '/master/products',
+    },
+];
+
+const formatPrice = (price: string | number): string => {
+    const numeric = typeof price === 'string' ? Number.parseFloat(price) : price;
+
+    if (Number.isNaN(numeric)) {
+        return '0.00';
+    }
+
+    return numeric.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+};
+
+export default function ProductsIndex({ products }: ProductsPageProps) {
+    const { flash } = usePage<SharedData>().props;
+    const [isEditOpen, setIsEditOpen] = useState(false);
+    const [productBeingEdited, setProductBeingEdited] =
+        useState<ProductSummary | null>(null);
+
+    const createForm = useForm<{
+        barcode: string;
+        name: string;
+        stock: string;
+        price: string;
+        image: File | null;
+    }>({
+        barcode: '',
+        name: '',
+        stock: '0',
+        price: '0.00',
+        image: null,
+    });
+
+    const editForm = useForm<{
+        barcode: string;
+        name: string;
+        stock: string;
+        price: string;
+        image: File | null;
+        remove_image: boolean;
+    }>({
+        barcode: '',
+        name: '',
+        stock: '0',
+        price: '0.00',
+        image: null,
+        remove_image: false,
+    });
+
+    const importForm = useForm<{
+        file: File | null;
+    }>({
+        file: null,
+    });
+
+    const deleteForm = useForm({});
+
+    useEffect(() => {
+        if (isEditOpen && productBeingEdited) {
+            editForm.setData((data) => ({
+                ...data,
+                barcode: productBeingEdited.barcode,
+                name: productBeingEdited.name,
+                stock: productBeingEdited.stock.toString(),
+                price: productBeingEdited.price.toString(),
+                image: null,
+                remove_image: false,
+            }));
+        }
+
+        if (!isEditOpen) {
+            editForm.reset();
+            editForm.clearErrors();
+            setProductBeingEdited(null);
+        }
+    }, [editForm, isEditOpen, productBeingEdited]);
+
+    const totalProducts = useMemo(() => products.length, [products.length]);
+
+    const handleCreateSubmit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        createForm.post('/master/products', {
+            preserveScroll: true,
+            forceFormData: true,
+            onSuccess: () => {
+                createForm.reset();
+                createForm.setData('stock', '0');
+                createForm.setData('price', '0.00');
+            },
+        });
+    };
+
+    const handleEditSubmit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!productBeingEdited) {
+            return;
+        }
+
+        editForm.post(`/master/products/${productBeingEdited.id}`, {
+            method: 'put',
+            preserveScroll: true,
+            forceFormData: true,
+            onSuccess: () => {
+                setIsEditOpen(false);
+            },
+        });
+    };
+
+    const handleDelete = (product: ProductSummary) => {
+        if (
+            window.confirm(
+                `Delete ${product.name}? This action cannot be undone.`,
+            )
+        ) {
+            deleteForm.delete(`/master/products/${product.id}`, {
+                preserveScroll: true,
+            });
+        }
+    };
+
+    const handleImportSubmit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        importForm.post('/master/products/import', {
+            preserveScroll: true,
+            forceFormData: true,
+            onSuccess: () => importForm.reset(),
+        });
+    };
+
+    const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+        createForm.setData('image', event.target.files?.[0] ?? null);
+    };
+
+    const handleEditFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+        editForm.setData('image', event.target.files?.[0] ?? null);
+    };
+
+    const handleImportFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+        importForm.setData('file', event.target.files?.[0] ?? null);
+    };
+
+    return (
+        <AppLayout breadcrumbs={breadcrumbs}>
+            <Head title="Products" />
+
+            <div className="space-y-6 p-4">
+                {flash?.success && (
+                    <Alert className="border-green-200 bg-green-50 text-green-900 dark:border-green-900/40 dark:bg-green-900/20 dark:text-green-100">
+                        <AlertTitle>Success</AlertTitle>
+                        <AlertDescription>{flash.success}</AlertDescription>
+                    </Alert>
+                )}
+
+                {flash?.error && (
+                    <Alert className="border-red-200 bg-red-50 text-red-800 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-100">
+                        <AlertTitle>Action required</AlertTitle>
+                        <AlertDescription>{flash.error}</AlertDescription>
+                    </Alert>
+                )}
+
+                <div className="grid gap-6 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+                    <div className="space-y-6">
+                        <section className="space-y-4 rounded-xl border border-sidebar-border/70 bg-card p-6 shadow-sm dark:border-sidebar-border">
+                            <header className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <PlusCircle className="h-5 w-5" />
+                                    <h2 className="text-lg font-semibold">Create product</h2>
+                                </div>
+                                <p className="text-sm text-muted-foreground">
+                                    Add a new item to your catalogue with barcode, stock level, price and optional image.
+                                </p>
+                            </header>
+
+                            <form onSubmit={handleCreateSubmit} className="space-y-4" encType="multipart/form-data">
+                                <div className="space-y-2">
+                                    <Label htmlFor="product-barcode">Barcode</Label>
+                                    <Input
+                                        id="product-barcode"
+                                        name="barcode"
+                                        placeholder="e.g. 1234567890123"
+                                        value={createForm.data.barcode}
+                                        onChange={(event) =>
+                                            createForm.setData('barcode', event.target.value)
+                                        }
+                                        autoComplete="off"
+                                    />
+                                    <InputError message={createForm.errors.barcode} />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="product-name">Name</Label>
+                                    <Input
+                                        id="product-name"
+                                        name="name"
+                                        placeholder="e.g. Wireless Mouse"
+                                        value={createForm.data.name}
+                                        onChange={(event) =>
+                                            createForm.setData('name', event.target.value)
+                                        }
+                                        autoComplete="off"
+                                    />
+                                    <InputError message={createForm.errors.name} />
+                                </div>
+
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="product-stock">Stock</Label>
+                                        <Input
+                                            id="product-stock"
+                                            name="stock"
+                                            type="number"
+                                            min={0}
+                                            value={createForm.data.stock}
+                                            onChange={(event) =>
+                                                createForm.setData('stock', event.target.value)
+                                            }
+                                        />
+                                        <InputError message={createForm.errors.stock} />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="product-price">Price</Label>
+                                        <Input
+                                            id="product-price"
+                                            name="price"
+                                            type="number"
+                                            min={0}
+                                            step="0.01"
+                                            value={createForm.data.price}
+                                            onChange={(event) =>
+                                                createForm.setData('price', event.target.value)
+                                            }
+                                        />
+                                        <InputError message={createForm.errors.price} />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="product-image">Image</Label>
+                                    <Input
+                                        id="product-image"
+                                        name="image"
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleFileChange}
+                                    />
+                                    <InputError message={createForm.errors.image} />
+                                </div>
+
+                                <Button type="submit" disabled={createForm.processing} className="w-full">
+                                    Create product
+                                </Button>
+                            </form>
+                        </section>
+
+                        <section className="space-y-4 rounded-xl border border-sidebar-border/70 bg-card p-6 shadow-sm dark:border-sidebar-border">
+                            <header className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <Upload className="h-5 w-5" />
+                                    <h2 className="text-lg font-semibold">Import / Export</h2>
+                                </div>
+                                <p className="text-sm text-muted-foreground">
+                                    Use spreadsheet files with headers <Badge variant="secondary">barcode</Badge>, <Badge variant="secondary">name</Badge>, <Badge variant="secondary">stock</Badge>, <Badge variant="secondary">price</Badge> and optional <Badge variant="secondary">image_path</Badge> to bulk manage products.
+                                </p>
+                            </header>
+
+                            <form onSubmit={handleImportSubmit} className="space-y-3" encType="multipart/form-data">
+                                <div className="space-y-2">
+                                    <Label htmlFor="import-file">Import file</Label>
+                                    <Input
+                                        id="import-file"
+                                        name="file"
+                                        type="file"
+                                        accept=".csv,.xls,.xlsx,.txt"
+                                        onChange={handleImportFileChange}
+                                    />
+                                    <InputError message={importForm.errors.file} />
+                                </div>
+
+                                <Button
+                                    type="submit"
+                                    disabled={importForm.processing || !importForm.data.file}
+                                    className="w-full"
+                                >
+                                    <Upload className="mr-2 h-4 w-4" /> Import products
+                                </Button>
+                            </form>
+
+                            <div className="space-y-2">
+                                <Label>Export</Label>
+                                <div className="flex flex-wrap gap-2">
+                                    <Button variant="outline" size="sm" asChild>
+                                        <a href="/master/products/export?format=xlsx">
+                                            <Download className="mr-2 h-4 w-4" /> Excel (.xlsx)
+                                        </a>
+                                    </Button>
+                                    <Button variant="outline" size="sm" asChild>
+                                        <a href="/master/products/export?format=csv">
+                                            <Download className="mr-2 h-4 w-4" /> CSV
+                                        </a>
+                                    </Button>
+                                    <Button variant="outline" size="sm" asChild>
+                                        <a href="/master/products/export?format=xls">
+                                            <Download className="mr-2 h-4 w-4" /> Excel 97-2003 (.xls)
+                                        </a>
+                                    </Button>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+
+                    <section className="space-y-4 rounded-xl border border-sidebar-border/70 bg-card p-6 shadow-sm dark:border-sidebar-border">
+                        <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h2 className="text-lg font-semibold">Product catalogue</h2>
+                                <p className="text-sm text-muted-foreground">
+                                    Manage the {totalProducts} products currently tracked in your store.
+                                </p>
+                            </div>
+                        </header>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[640px] text-sm">
+                                <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                                    <tr>
+                                        <th className="px-3 py-2">Barcode</th>
+                                        <th className="px-3 py-2">Name</th>
+                                        <th className="px-3 py-2 text-right">Stock</th>
+                                        <th className="px-3 py-2 text-right">Price</th>
+                                        <th className="px-3 py-2">Image</th>
+                                        <th className="px-3 py-2 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {products.length === 0 ? (
+                                        <tr>
+                                            <td
+                                                colSpan={6}
+                                                className="px-3 py-6 text-center text-sm text-muted-foreground"
+                                            >
+                                                No products yet. Use the form on the left to add your first item or import from a spreadsheet.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        products.map((product) => (
+                                            <tr
+                                                key={product.id}
+                                                className="border-b border-muted/50 last:border-b-0"
+                                            >
+                                                <td className="px-3 py-3 font-medium">{product.barcode}</td>
+                                                <td className="px-3 py-3">{product.name}</td>
+                                                <td className="px-3 py-3 text-right">{product.stock.toLocaleString()}</td>
+                                                <td className="px-3 py-3 text-right">{formatPrice(product.price)}</td>
+                                                <td className="px-3 py-3">
+                                                    {product.image_url ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <img
+                                                                src={product.image_url}
+                                                                alt={product.name}
+                                                                className="h-10 w-10 rounded-md object-cover"
+                                                            />
+                                                            <Badge variant="outline">Uploaded</Badge>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2 text-muted-foreground">
+                                                            <ImageIcon className="h-4 w-4" />
+                                                            <span>No image</span>
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-3">
+                                                    <div className="flex justify-end gap-2">
+                                                        <Dialog
+                                                            open={
+                                                                isEditOpen &&
+                                                                productBeingEdited?.id === product.id
+                                                            }
+                                                            onOpenChange={(open) => {
+                                                                setIsEditOpen(open);
+                                                                setProductBeingEdited(open ? product : null);
+                                                            }}
+                                                        >
+                                                            <DialogTrigger asChild>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="icon"
+                                                                    aria-label={`Edit ${product.name}`}
+                                                                >
+                                                                    <Edit className="h-4 w-4" />
+                                                                </Button>
+                                                            </DialogTrigger>
+                                                            <DialogContent className="sm:max-w-lg">
+                                                                <DialogHeader>
+                                                                    <DialogTitle>Edit product</DialogTitle>
+                                                                    <DialogDescription>
+                                                                        Update the core information for{' '}
+                                                                        {productBeingEdited?.name ?? product.name}.
+                                                                    </DialogDescription>
+                                                                </DialogHeader>
+                                                                <form
+                                                                    onSubmit={handleEditSubmit}
+                                                                    className="space-y-4"
+                                                                    encType="multipart/form-data"
+                                                                >
+                                                                    <div className="space-y-2">
+                                                                        <Label htmlFor="edit-barcode">Barcode</Label>
+                                                                        <Input
+                                                                            id="edit-barcode"
+                                                                            name="barcode"
+                                                                            value={editForm.data.barcode}
+                                                                            onChange={(event) =>
+                                                                                editForm.setData(
+                                                                                    'barcode',
+                                                                                    event.target.value,
+                                                                                )
+                                                                            }
+                                                                        />
+                                                                        <InputError message={editForm.errors.barcode} />
+                                                                    </div>
+
+                                                                    <div className="space-y-2">
+                                                                        <Label htmlFor="edit-name">Name</Label>
+                                                                        <Input
+                                                                            id="edit-name"
+                                                                            name="name"
+                                                                            value={editForm.data.name}
+                                                                            onChange={(event) =>
+                                                                                editForm.setData(
+                                                                                    'name',
+                                                                                    event.target.value,
+                                                                                )
+                                                                            }
+                                                                        />
+                                                                        <InputError message={editForm.errors.name} />
+                                                                    </div>
+
+                                                                    <div className="grid gap-4 sm:grid-cols-2">
+                                                                        <div className="space-y-2">
+                                                                            <Label htmlFor="edit-stock">Stock</Label>
+                                                                            <Input
+                                                                                id="edit-stock"
+                                                                                name="stock"
+                                                                                type="number"
+                                                                                min={0}
+                                                                                value={editForm.data.stock}
+                                                                                onChange={(event) =>
+                                                                                    editForm.setData(
+                                                                                        'stock',
+                                                                                        event.target.value,
+                                                                                    )
+                                                                                }
+                                                                            />
+                                                                            <InputError message={editForm.errors.stock} />
+                                                                        </div>
+
+                                                                        <div className="space-y-2">
+                                                                            <Label htmlFor="edit-price">Price</Label>
+                                                                            <Input
+                                                                                id="edit-price"
+                                                                                name="price"
+                                                                                type="number"
+                                                                                min={0}
+                                                                                step="0.01"
+                                                                                value={editForm.data.price}
+                                                                                onChange={(event) =>
+                                                                                    editForm.setData(
+                                                                                        'price',
+                                                                                        event.target.value,
+                                                                                    )
+                                                                                }
+                                                                            />
+                                                                            <InputError message={editForm.errors.price} />
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="space-y-2">
+                                                                        <Label htmlFor="edit-image">Replace image</Label>
+                                                                        <Input
+                                                                            id="edit-image"
+                                                                            name="image"
+                                                                            type="file"
+                                                                            accept="image/*"
+                                                                            onChange={handleEditFileChange}
+                                                                        />
+                                                                        <InputError message={editForm.errors.image} />
+                                                                    </div>
+
+                                                                    {productBeingEdited?.image_url && (
+                                                                        <div className="flex items-center justify-between rounded-lg border border-dashed border-muted-foreground/40 p-3">
+                                                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                                                <img
+                                                                                    src={productBeingEdited.image_url}
+                                                                                    alt={productBeingEdited.name}
+                                                                                    className="h-12 w-12 rounded-md object-cover"
+                                                                                />
+                                                                                <span>Current image</span>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-2">
+                                                                                <Checkbox
+                                                                                    id="remove-image"
+                                                                                    checked={editForm.data.remove_image}
+                                                                                    onCheckedChange={(value) =>
+                                                                                        editForm.setData(
+                                                                                            'remove_image',
+                                                                                            value === true,
+                                                                                        )
+                                                                                    }
+                                                                                />
+                                                                                <Label
+                                                                                    htmlFor="remove-image"
+                                                                                    className="text-sm"
+                                                                                >
+                                                                                    Remove image
+                                                                                </Label>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    <DialogFooter>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            onClick={() => setIsEditOpen(false)}
+                                                                        >
+                                                                            Cancel
+                                                                        </Button>
+                                                                        <Button
+                                                                            type="submit"
+                                                                            disabled={editForm.processing}
+                                                                        >
+                                                                            Save changes
+                                                                        </Button>
+                                                                    </DialogFooter>
+                                                                </form>
+                                                            </DialogContent>
+                                                        </Dialog>
+
+                                                        <Button
+                                                            variant="destructive"
+                                                            size="icon"
+                                                            onClick={() => handleDelete(product)}
+                                                            aria-label={`Delete ${product.name}`}
+                                                            disabled={deleteForm.processing}
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </AppLayout>
+    );
+}

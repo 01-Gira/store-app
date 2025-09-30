@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Master\PermissionController;
+use App\Http\Controllers\Master\ProductController;
 use App\Http\Controllers\Master\RoleController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -17,6 +18,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('master')->name('master.')->group(function () {
         Route::resource('roles', RoleController::class)->except(['create', 'edit', 'show']);
         Route::resource('permissions', PermissionController::class)->except(['create', 'edit', 'show']);
+        Route::resource('products', ProductController::class)->except(['create', 'edit', 'show']);
+        Route::post('products/import', [ProductController::class, 'import'])->name('products.import');
+        Route::get('products/export', [ProductController::class, 'export'])->name('products.export');
     });
 });
 
