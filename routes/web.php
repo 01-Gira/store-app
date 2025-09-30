@@ -4,6 +4,7 @@ use App\Http\Controllers\Master\PermissionController;
 use App\Http\Controllers\Master\ProductController;
 use App\Http\Controllers\Master\RoleController;
 use App\Http\Controllers\Master\UserController;
+use App\Http\Controllers\Transactions\TransactionController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -15,6 +16,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', function () {
         return Inertia::render('dashboard');
     })->name('dashboard');
+
+    Route::prefix('transactions')->name('transactions.')->group(function () {
+        Route::get('employee', [TransactionController::class, 'employee'])->name('employee');
+        Route::post('/', [TransactionController::class, 'store'])->name('store');
+        Route::get('products/{product:barcode}', [TransactionController::class, 'showProduct'])->name('products.show');
+        Route::get('customer/latest', [TransactionController::class, 'latest'])->name('customer.latest');
+        Route::get('customer/{transaction}', [TransactionController::class, 'customer'])->name('customer');
+    });
 
     Route::prefix('master')->name('master.')->group(function () {
         Route::resource('roles', RoleController::class)->except(['create', 'edit', 'show']);
