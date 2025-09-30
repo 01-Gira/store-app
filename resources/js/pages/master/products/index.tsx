@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, useForm, usePage } from '@inertiajs/react';
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useMemo, useState } from 'react';
 import { Download, Edit, Image as ImageIcon, PlusCircle, Trash2, Upload } from 'lucide-react';
 
 interface ProductSummary {
@@ -100,25 +100,28 @@ export default function ProductsIndex({ products }: ProductsPageProps) {
 
     const deleteForm = useForm({});
 
-    useEffect(() => {
-        if (isEditOpen && productBeingEdited) {
+    const handleEditDialogChange = (product: ProductSummary) => (open: boolean) => {
+        setIsEditOpen(open);
+
+        if (open) {
+            setProductBeingEdited(product);
             editForm.setData((data) => ({
                 ...data,
-                barcode: productBeingEdited.barcode,
-                name: productBeingEdited.name,
-                stock: productBeingEdited.stock.toString(),
-                price: productBeingEdited.price.toString(),
+                barcode: product.barcode,
+                name: product.name,
+                stock: product.stock.toString(),
+                price: product.price.toString(),
                 image: null,
                 remove_image: false,
             }));
+            editForm.clearErrors();
+            return;
         }
 
-        if (!isEditOpen) {
-            editForm.reset();
-            editForm.clearErrors();
-            setProductBeingEdited(null);
-        }
-    }, [editForm, isEditOpen, productBeingEdited]);
+        editForm.reset();
+        editForm.clearErrors();
+        setProductBeingEdited(null);
+    };
 
     const totalProducts = useMemo(() => products.length, [products.length]);
 
@@ -422,10 +425,7 @@ export default function ProductsIndex({ products }: ProductsPageProps) {
                                                                 isEditOpen &&
                                                                 productBeingEdited?.id === product.id
                                                             }
-                                                            onOpenChange={(open) => {
-                                                                setIsEditOpen(open);
-                                                                setProductBeingEdited(open ? product : null);
-                                                            }}
+                                                            onOpenChange={handleEditDialogChange(product)}
                                                         >
                                                             <DialogTrigger asChild>
                                                                 <Button
