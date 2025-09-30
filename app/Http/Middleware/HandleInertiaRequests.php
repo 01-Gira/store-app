@@ -41,8 +41,13 @@ class HandleInertiaRequests extends Middleware
         $user = $request->user();
 
         if ($user) {
-            $user->setAttribute('permissions', $user->getAllPermissions()->pluck('name')->all());
-            $user->setAttribute('roles', $user->getRoleNames()->all());
+            // $user->setAttribute('permissions', $user->getAllPermissions()->pluck('name')->all());
+            // $user->setAttribute('roles', $user->getRoleNames()->all());
+             $sharedUser = [
+                ...$user->toArray(),
+                'permissions' => $user->getAllPermissions()->pluck('name')->all(),
+                'roles' => $user->getRoleNames()->all(),
+            ];
         }
 
         return [
@@ -50,7 +55,7 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
-                'user' => $user,
+                'user' => $sharedUser,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'flash' => [
