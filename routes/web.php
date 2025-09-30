@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Master\PermissionController;
+use App\Http\Controllers\Master\RoleController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -11,6 +13,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', function () {
         return Inertia::render('dashboard');
     })->name('dashboard');
+
+    Route::prefix('master')->name('master.')->group(function () {
+        Route::resource('roles', RoleController::class)->except(['create', 'edit', 'show']);
+        Route::resource('permissions', PermissionController::class)->except(['create', 'edit', 'show']);
+    });
 });
 
 require __DIR__.'/settings.php';

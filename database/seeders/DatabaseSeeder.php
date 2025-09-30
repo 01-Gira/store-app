@@ -6,6 +6,8 @@ use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 class DatabaseSeeder extends Seeder
 {
@@ -16,7 +18,7 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
 
-        User::firstOrCreate(
+        $user = User::firstOrCreate(
             ['email' => 'test@example.com'],
             [
                 'name' => 'Test User',
@@ -24,5 +26,26 @@ class DatabaseSeeder extends Seeder
                 'email_verified_at' => now(),
             ]
         );
+
+        collect([
+            'manage roles',
+            'manage permissions',
+        ])->each(static function (string $name): void {
+            Permission::firstOrCreate([
+                'name' => $name,
+                'guard_name' => 'web',
+            ]);
+        });
+
+        $administratorRole = Role::firstOrCreate([
+            'name' => 'Administrator',
+            'guard_name' => 'web',
+        ]);
+
+        $administratorRole->syncPermissions(Permission::all());
+
+        if (! $user->hasRole($administratorRole->name)) {
+            $user->assignRole($administratorRole);
+        }
     }
 }
