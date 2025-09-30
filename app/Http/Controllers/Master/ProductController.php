@@ -8,6 +8,7 @@ use App\Http\Requests\Master\ImportProductsRequest;
 use App\Http\Requests\Master\StoreProductRequest;
 use App\Http\Requests\Master\UpdateProductRequest;
 use App\Imports\ProductsImport;
+use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,6 +27,7 @@ class ProductController extends Controller
     public function index(): Response
     {
         $products = Product::query()
+            ->with('categories')
             ->latest()
             ->get()
             ->map(function (Product $product): array {
@@ -45,11 +47,28 @@ class ProductController extends Controller
                     'image_url' => $imageUrl,
                     'created_at' => $product->created_at?->toISOString(),
                     'updated_at' => $product->updated_at?->toISOString(),
+                    'categories' => $product->categories
+                        ->sortBy('name')
+                        ->map(fn (Category $category): array => [
+                            'id' => $category->id,
+                            'name' => $category->name,
+                        ])
+                        ->values()
+                        ->all(),
                 ];
             });
 
+        $availableCategories = Category::query()
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Category $category): array => [
+                'id' => $category->id,
+                'name' => $category->name,
+            ]);
+
         return Inertia::render('master/products/index', [
             'products' => $products,
+            'availableCategories' => $availableCategories,
         ]);
     }
 
@@ -59,14 +78,21 @@ class ProductController extends Controller
     public function store(StoreProductRequest $request): RedirectResponse
     {
         $data = $request->validated();
+        $categoryIds = collect($data['category_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
         if ($request->hasFile('image')) {
             $data['image_path'] = $request->file('image')->store('products', 'public');
         }
 
-        unset($data['image']);
+        unset($data['image'], $data['category_ids']);
 
-        Product::create($data);
+        $product = Product::create($data);
+        $product->categories()->sync($categoryIds);
 
         return Redirect::back()->with('success', 'Product created successfully.');
     }
@@ -77,6 +103,16 @@ class ProductController extends Controller
     public function update(UpdateProductRequest $request, Product $product): RedirectResponse
     {
         $data = $request->validated();
+        $categoryIds = null;
+
+        if (array_key_exists('category_ids', $data)) {
+            $categoryIds = collect($data['category_ids'] ?? [])
+                ->map(fn ($id) => (int) $id)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+        }
 
         if ($request->boolean('remove_image') && $product->image_path) {
             Storage::disk('public')->delete($product->image_path);
@@ -91,9 +127,13 @@ class ProductController extends Controller
             $data['image_path'] = $request->file('image')->store('products', 'public');
         }
 
-        unset($data['image'], $data['remove_image']);
+        unset($data['image'], $data['remove_image'], $data['category_ids']);
 
         $product->update($data);
+
+        if ($categoryIds !== null) {
+            $product->categories()->sync($categoryIds);
+        }
 
         return Redirect::back()->with('success', 'Product updated successfully.');
     }

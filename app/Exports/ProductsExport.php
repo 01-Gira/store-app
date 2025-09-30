@@ -16,6 +16,7 @@ class ProductsExport implements FromCollection, WithHeadings, WithMapping
     public function collection(): Collection
     {
         return Product::query()
+            ->with('categories')
             ->orderByDesc('created_at')
             ->get();
     }
@@ -33,6 +34,10 @@ class ProductsExport implements FromCollection, WithHeadings, WithMapping
             $product->stock,
             $product->price,
             $product->image_path,
+            $product->categories
+                ->sortBy('name')
+                ->pluck('name')
+                ->implode(', '),
         ];
     }
 
@@ -41,6 +46,6 @@ class ProductsExport implements FromCollection, WithHeadings, WithMapping
      */
     public function headings(): array
     {
-        return ['id', 'barcode', 'name', 'stock', 'price', 'image_path'];
+        return ['id', 'barcode', 'name', 'stock', 'price', 'image_path', 'categories'];
     }
 }
