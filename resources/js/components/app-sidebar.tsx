@@ -13,7 +13,11 @@ import {
 import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
+<<<<<<< HEAD
 import { BookOpen, Folder, KeyRound, LayoutGrid, Shield, Users } from 'lucide-react';
+=======
+import { BookOpen, Folder, KeyRound, LayoutGrid, Package, Shield } from 'lucide-react';
+>>>>>>> cd3a795a1e7aca30ba2c7c9c3d32a3746e019fff
 import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
@@ -36,6 +40,11 @@ const mainNavItems: NavItem[] = [
         title: 'Permissions',
         href: '/master/permissions',
         icon: KeyRound,
+    },
+    {
+        title: 'Products',
+        href: '/master/products',
+        icon: Package,
     },
 ];
 
