@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Master\PermissionController;
 use App\Http\Controllers\Master\RoleController;
+use App\Http\Controllers\Master\UserController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -17,6 +18,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('master')->name('master.')->group(function () {
         Route::resource('roles', RoleController::class)->except(['create', 'edit', 'show']);
         Route::resource('permissions', PermissionController::class)->except(['create', 'edit', 'show']);
+        Route::resource('users', UserController::class)->except(['create', 'edit', 'show']);
     });
 });
 
