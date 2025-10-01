@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Inventory\InventoryAdjustmentController;
+use App\Http\Controllers\Inventory\InventoryTransferController;
 use App\Http\Controllers\Inventory\PurchaseOrderController;
 use App\Http\Controllers\Inventory\SupplierController;
 use App\Http\Controllers\DashboardController;
@@ -46,6 +47,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])
             ->name('purchase-orders.receive');
         Route::resource('adjustments', InventoryAdjustmentController::class)->only(['index', 'store']);
+        Route::resource('transfers', InventoryTransferController::class)->only(['index', 'store']);
     });
 });
 
