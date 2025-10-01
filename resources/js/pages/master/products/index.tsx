@@ -267,7 +267,7 @@ export default function ProductsIndex({
             return;
         }
 
-        editForm.post(`/master/products/${productBeingEdited.id}`, {
+        editForm.put(`/master/products/${productBeingEdited.id}`, {
             method: 'put',
             preserveScroll: true,
             forceFormData: true,
