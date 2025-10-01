@@ -1,5 +1,7 @@
+import { TablePagination, TableToolbar } from '@/components/table-controls';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useTableControls } from '@/hooks/use-table-controls';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
@@ -205,6 +207,31 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
 
         return `${prefix}${value.toFixed(1)} hari`;
     };
+    const topSupplierControls = useTableControls(supplierMetrics.topSuppliers, {
+        searchFields: [
+            (supplier) => supplier.supplierName ?? '',
+            (supplier) => (supplier.supplierId != null ? supplier.supplierId.toString() : ''),
+        ],
+        filters: [
+            { label: 'Semua skor', value: 'all' },
+            {
+                label: 'Skor ≥ 85',
+                value: 'excellent',
+                predicate: (supplier) => supplier.score >= 85,
+            },
+            {
+                label: 'Skor 70 – 84',
+                value: 'good',
+                predicate: (supplier) => supplier.score >= 70 && supplier.score < 85,
+            },
+            {
+                label: 'Skor < 70',
+                value: 'attention',
+                predicate: (supplier) => supplier.score < 70,
+            },
+        ],
+        initialPageSize: 5,
+    });
     const supplierIssueCount = supplierSummary.lateDeliveryCount + supplierSummary.outstandingCount;
 
     const periodLabel =
@@ -552,51 +579,87 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
                             <CardDescription>Diurutkan dari skor gabungan ketepatan dan pemenuhan</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            {supplierMetrics.topSuppliers.length > 0 ? (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full min-w-[480px] text-sm">
-                                        <thead className="text-xs uppercase text-muted-foreground">
-                                            <tr>
-                                                <th className="px-2 py-2 text-left font-medium">Pemasok</th>
-                                                <th className="px-2 py-2 text-right font-medium">Pesanan</th>
-                                                <th className="px-2 py-2 text-right font-medium">Tepat Waktu</th>
-                                                <th className="px-2 py-2 text-right font-medium">Pemenuhan</th>
-                                                <th className="px-2 py-2 text-right font-medium">Lead Time</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {supplierMetrics.topSuppliers.map((supplier, index) => (
-                                                <tr
-                                                    key={`${supplier.supplierId ?? 'unknown'}-${index}`}
-                                                    className={index % 2 === 1 ? 'bg-muted/40' : undefined}
-                                                >
-                                                    <td className="px-2 py-2 align-top">
-                                                        <div className="flex flex-col">
-                                                            <span className="font-medium text-foreground">
-                                                                {supplier.supplierName ?? 'Tidak diketahui'}
-                                                            </span>
-                                                            <span className="text-xs text-muted-foreground">
-                                                                {formatNumber(supplier.completedOrders)} selesai •{' '}
-                                                                {formatNumber(supplier.lateDeliveries)} terlambat
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-2 py-2 text-right font-medium text-foreground">
-                                                        {formatNumber(supplier.orders)}
-                                                    </td>
-                                                    <td className="px-2 py-2 text-right">
-                                                        {formatOptionalPercent(supplier.onTimeRate)}
-                                                    </td>
-                                                    <td className="px-2 py-2 text-right">
-                                                        {formatOptionalPercent(supplier.fulfillmentRate)}
-                                                    </td>
-                                                    <td className="px-2 py-2 text-right">
-                                                        {formatOptionalDays(supplier.averageLeadTime)}
-                                                    </td>
+                            {topSupplierControls.total > 0 ? (
+                                <div className="space-y-4">
+                                    <TableToolbar
+                                        searchTerm={topSupplierControls.searchTerm}
+                                        onSearchChange={topSupplierControls.setSearchTerm}
+                                        searchPlaceholder="Cari pemasok atau ID pemasok"
+                                        filterOptions={topSupplierControls.filterOptions}
+                                        filterValue={topSupplierControls.filterValue}
+                                        onFilterChange={topSupplierControls.setFilterValue}
+                                        pageSize={topSupplierControls.pageSize}
+                                        pageSizeOptions={topSupplierControls.pageSizeOptions}
+                                        onPageSizeChange={topSupplierControls.setPageSize}
+                                        total={topSupplierControls.total}
+                                        filteredTotal={topSupplierControls.filteredTotal}
+                                    />
+
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full min-w-[480px] text-sm">
+                                            <thead className="text-xs uppercase text-muted-foreground">
+                                                <tr>
+                                                    <th className="px-2 py-2 text-left font-medium">Pemasok</th>
+                                                    <th className="px-2 py-2 text-right font-medium">Pesanan</th>
+                                                    <th className="px-2 py-2 text-right font-medium">Tepat Waktu</th>
+                                                    <th className="px-2 py-2 text-right font-medium">Pemenuhan</th>
+                                                    <th className="px-2 py-2 text-right font-medium">Lead Time</th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody>
+                                                {topSupplierControls.filteredTotal === 0 ? (
+                                                    <tr>
+                                                        <td
+                                                            colSpan={5}
+                                                            className="px-2 py-6 text-center text-sm text-muted-foreground"
+                                                        >
+                                                            Tidak ada pemasok yang cocok dengan pencarian atau filter.
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    topSupplierControls.items.map((supplier, index) => (
+                                                        <tr
+                                                            key={`${supplier.supplierId ?? 'unknown'}-${index}`}
+                                                            className={index % 2 === 1 ? 'bg-muted/40' : undefined}
+                                                        >
+                                                            <td className="px-2 py-2 align-top">
+                                                                <div className="flex flex-col">
+                                                                    <span className="font-medium text-foreground">
+                                                                        {supplier.supplierName ?? 'Tidak diketahui'}
+                                                                    </span>
+                                                                    <span className="text-xs text-muted-foreground">
+                                                                        {formatNumber(supplier.completedOrders)} selesai •{' '}
+                                                                        {formatNumber(supplier.lateDeliveries)} terlambat
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-2 py-2 text-right font-medium text-foreground">
+                                                                {formatNumber(supplier.orders)}
+                                                            </td>
+                                                            <td className="px-2 py-2 text-right">
+                                                                {formatOptionalPercent(supplier.onTimeRate)}
+                                                            </td>
+                                                            <td className="px-2 py-2 text-right">
+                                                                {formatOptionalPercent(supplier.fulfillmentRate)}
+                                                            </td>
+                                                            <td className="px-2 py-2 text-right">
+                                                                {formatOptionalDays(supplier.averageLeadTime)}
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <TablePagination
+                                        page={topSupplierControls.page}
+                                        pageCount={topSupplierControls.pageCount}
+                                        onPageChange={topSupplierControls.goToPage}
+                                        range={topSupplierControls.range}
+                                        total={topSupplierControls.total}
+                                        filteredTotal={topSupplierControls.filteredTotal}
+                                    />
                                 </div>
                             ) : (
                                 <p className="text-sm text-muted-foreground">

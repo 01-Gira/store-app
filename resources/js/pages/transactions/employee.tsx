@@ -1,3 +1,4 @@
+import { TablePagination, TableToolbar } from '@/components/table-controls';
 import InputError from '@/components/input-error';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -6,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { useTableControls } from '@/hooks/use-table-controls';
 import AppLayout from '@/layouts/app-layout';
 import { type SharedData } from '@/types';
 import { Head, useForm, usePage } from '@inertiajs/react';
@@ -123,6 +125,23 @@ export default function EmployeeTransactions({
     const [enrollErrors, setEnrollErrors] = useState<Record<string, string[]>>({});
     const [enrollStatus, setEnrollStatus] = useState<string | null>(null);
     const [isSubmittingEnrollment, setIsSubmittingEnrollment] = useState(false);
+
+    const itemControls = useTableControls(items, {
+        searchFields: [
+            (item) => item.name,
+            (item) => item.barcode,
+        ],
+        filters: [
+            { label: 'Semua item', value: 'all' },
+            {
+                label: 'Kuantitas > 1',
+                value: 'bulk',
+                predicate: (item) => item.quantity > 1,
+            },
+        ],
+        initialPageSize: 8,
+        pageSizeOptions: [5, 8, 12, 20],
+    });
 
     const form = useForm<TransactionFormData>({
         items: [],
@@ -820,85 +839,116 @@ export default function EmployeeTransactions({
                         )}
 
                         <Card className="overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-border text-sm">
-                                    <thead className="bg-muted/50">
-                                        <tr>
-                                            <th className="px-4 py-3 text-left font-medium">Product</th>
-                                            <th className="px-4 py-3 text-left font-medium">Price</th>
-                                            <th className="px-4 py-3 text-left font-medium">Quantity</th>
-                                            <th className="px-4 py-3 text-left font-medium">Line total</th>
-                                            <th className="px-4 py-3 text-right font-medium">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-border">
-                                        {items.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
-                                                    Scan a barcode or add a product manually to begin.
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            items.map((item) => {
-                                                const lineTotal = item.price * item.quantity;
+                            <div className="space-y-4 p-4">
+                                <TableToolbar
+                                    searchTerm={itemControls.searchTerm}
+                                    onSearchChange={itemControls.setSearchTerm}
+                                    searchPlaceholder="Cari produk di keranjang"
+                                    filterOptions={itemControls.filterOptions}
+                                    filterValue={itemControls.filterValue}
+                                    onFilterChange={itemControls.setFilterValue}
+                                    pageSize={itemControls.pageSize}
+                                    pageSizeOptions={itemControls.pageSizeOptions}
+                                    onPageSizeChange={itemControls.setPageSize}
+                                    total={itemControls.total}
+                                    filteredTotal={itemControls.filteredTotal}
+                                />
 
-                                                return (
-                                                    <tr key={item.id}>
-                                                        <td className="px-4 py-3">
-                                                            <div className="font-medium">{item.name}</div>
-                                                            <div className="text-xs text-muted-foreground">{item.barcode}</div>
-                                                        </td>
-                                                        <td className="px-4 py-3">{formatCurrency(item.price)}</td>
-                                                        <td className="px-4 py-3">
-                                                            <div className="flex items-center gap-2">
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-border text-sm">
+                                        <thead className="bg-muted/50">
+                                            <tr>
+                                                <th className="px-4 py-3 text-left font-medium">Product</th>
+                                                <th className="px-4 py-3 text-left font-medium">Price</th>
+                                                <th className="px-4 py-3 text-left font-medium">Quantity</th>
+                                                <th className="px-4 py-3 text-left font-medium">Line total</th>
+                                                <th className="px-4 py-3 text-right font-medium">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-border">
+                                            {itemControls.total === 0 ? (
+                                                <tr>
+                                                    <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
+                                                        Scan a barcode or add a product manually to begin.
+                                                    </td>
+                                                </tr>
+                                            ) : itemControls.filteredTotal === 0 ? (
+                                                <tr>
+                                                    <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
+                                                        Tidak ada item yang cocok dengan pencarian atau filter.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                itemControls.items.map((item) => {
+                                                    const lineTotal = item.price * item.quantity;
+
+                                                    return (
+                                                        <tr key={item.id}>
+                                                            <td className="px-4 py-3">
+                                                                <div className="font-medium">{item.name}</div>
+                                                                <div className="text-xs text-muted-foreground">{item.barcode}</div>
+                                                            </td>
+                                                            <td className="px-4 py-3">{formatCurrency(item.price)}</td>
+                                                            <td className="px-4 py-3">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Button
+                                                                        type="button"
+                                                                        size="icon"
+                                                                        variant="outline"
+                                                                        onClick={() => handleDecrement(item.id)}
+                                                                        disabled={item.quantity <= 1}
+                                                                    >
+                                                                        <Minus className="h-4 w-4" />
+                                                                    </Button>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min={1}
+                                                                        className="w-20"
+                                                                        value={item.quantity}
+                                                                        onChange={(event) =>
+                                                                            handleQuantityChange(
+                                                                                item.id,
+                                                                                Number.parseInt(event.target.value, 10),
+                                                                            )
+                                                                        }
+                                                                    />
+                                                                    <Button
+                                                                        type="button"
+                                                                        size="icon"
+                                                                        variant="outline"
+                                                                        onClick={() => handleIncrement(item.id)}
+                                                                    >
+                                                                        <Plus className="h-4 w-4" />
+                                                                    </Button>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-3">{formatCurrency(lineTotal)}</td>
+                                                            <td className="px-4 py-3 text-right">
                                                                 <Button
                                                                     type="button"
+                                                                    variant="destructive"
                                                                     size="icon"
-                                                                    variant="outline"
-                                                                    onClick={() => handleDecrement(item.id)}
-                                                                    disabled={item.quantity <= 1}
+                                                                    onClick={() => handleRemove(item.id)}
                                                                 >
-                                                                    <Minus className="h-4 w-4" />
+                                                                    <Trash2 className="h-4 w-4" />
                                                                 </Button>
-                                                                <Input
-                                                                    type="number"
-                                                                    min={1}
-                                                                    className="w-20"
-                                                                    value={item.quantity}
-                                                                    onChange={(event) =>
-                                                                        handleQuantityChange(
-                                                                            item.id,
-                                                                            Number.parseInt(event.target.value, 10),
-                                                                        )
-                                                                    }
-                                                                />
-                                                                <Button
-                                                                    type="button"
-                                                                    size="icon"
-                                                                    variant="outline"
-                                                                    onClick={() => handleIncrement(item.id)}
-                                                                >
-                                                                    <Plus className="h-4 w-4" />
-                                                                </Button>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-3">{formatCurrency(lineTotal)}</td>
-                                                        <td className="px-4 py-3 text-right">
-                                                            <Button
-                                                                type="button"
-                                                                variant="destructive"
-                                                                size="icon"
-                                                                onClick={() => handleRemove(item.id)}
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })
-                                        )}
-                                    </tbody>
-                                </table>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <TablePagination
+                                    page={itemControls.page}
+                                    pageCount={itemControls.pageCount}
+                                    onPageChange={itemControls.goToPage}
+                                    range={itemControls.range}
+                                    total={itemControls.total}
+                                    filteredTotal={itemControls.filteredTotal}
+                                />
                             </div>
                         </Card>
                     </div>

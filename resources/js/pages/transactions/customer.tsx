@@ -1,5 +1,7 @@
+import { TablePagination, TableToolbar } from '@/components/table-controls';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { useTableControls } from '@/hooks/use-table-controls';
 import CustomerLayout from '@/layouts/customer-layout';
 import { Head, router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
@@ -129,6 +131,28 @@ export default function CustomerDisplay({
         });
     };
 
+    const transactionItems = transaction?.items ?? [];
+    const transactionItemControls = useTableControls(transactionItems, {
+        searchFields: [
+            (item) => item.name,
+            (item) => item.barcode,
+        ],
+        filters: [
+            { label: 'Semua produk', value: 'all' },
+            {
+                label: 'Dengan pajak',
+                value: 'with-tax',
+                predicate: (item) => item.tax_amount > 0,
+            },
+            {
+                label: 'Kuantitas > 1',
+                value: 'multi-qty',
+                predicate: (item) => item.quantity > 1,
+            },
+        ],
+        initialPageSize: 5,
+    });
+
     return (
         <CustomerLayout>
             <Head title="Customer display" />
@@ -206,32 +230,77 @@ export default function CustomerDisplay({
 
                 {transaction ? (
                     <div className="space-y-6">
-                        <div className="overflow-hidden rounded-xl border border-border bg-background">
-                            <table className="min-w-full divide-y divide-border text-lg">
-                                <thead className="bg-muted/50 text-base uppercase tracking-wide">
-                                    <tr>
-                                        <th className="px-6 py-4 text-left">Produk</th>
-                                        <th className="px-6 py-4 text-center">Jumlah</th>
-                                        <th className="px-6 py-4 text-right">Harga</th>
-                                        <th className="px-6 py-4 text-right">Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border">
-                                    {transaction.items.map((item) => (
-                                        <tr key={item.id}>
-                                            <td className="px-6 py-4">
-                                                <div className="text-xl font-semibold">{item.name}</div>
-                                                <div className="text-sm text-muted-foreground">{item.barcode}</div>
-                                            </td>
-                                            <td className="px-6 py-4 text-center font-medium">{item.quantity}</td>
-                                            <td className="px-6 py-4 text-right">{formatCurrency(item.unit_price)}</td>
-                                            <td className="px-6 py-4 text-right font-semibold">
-                                                {formatCurrency(item.line_total)}
-                                            </td>
+                        <div className="space-y-4">
+                            <TableToolbar
+                                searchTerm={transactionItemControls.searchTerm}
+                                onSearchChange={transactionItemControls.setSearchTerm}
+                                searchPlaceholder="Cari produk atau barcode"
+                                filterOptions={transactionItemControls.filterOptions}
+                                filterValue={transactionItemControls.filterValue}
+                                onFilterChange={transactionItemControls.setFilterValue}
+                                pageSize={transactionItemControls.pageSize}
+                                pageSizeOptions={transactionItemControls.pageSizeOptions}
+                                onPageSizeChange={transactionItemControls.setPageSize}
+                                total={transactionItemControls.total}
+                                filteredTotal={transactionItemControls.filteredTotal}
+                            />
+
+                            <div className="overflow-hidden rounded-xl border border-border bg-background">
+                                <table className="min-w-full divide-y divide-border text-lg">
+                                    <thead className="bg-muted/50 text-base uppercase tracking-wide">
+                                        <tr>
+                                            <th className="px-6 py-4 text-left">Produk</th>
+                                            <th className="px-6 py-4 text-center">Jumlah</th>
+                                            <th className="px-6 py-4 text-right">Harga</th>
+                                            <th className="px-6 py-4 text-right">Total</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-border">
+                                        {transactionItemControls.total === 0 ? (
+                                            <tr>
+                                                <td
+                                                    colSpan={4}
+                                                    className="px-6 py-6 text-center text-base text-muted-foreground"
+                                                >
+                                                    Belum ada item dalam transaksi ini.
+                                                </td>
+                                            </tr>
+                                        ) : transactionItemControls.filteredTotal === 0 ? (
+                                            <tr>
+                                                <td
+                                                    colSpan={4}
+                                                    className="px-6 py-6 text-center text-base text-muted-foreground"
+                                                >
+                                                    Tidak ada item yang cocok dengan pencarian atau filter.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            transactionItemControls.items.map((item) => (
+                                                <tr key={item.id}>
+                                                    <td className="px-6 py-4">
+                                                        <div className="text-xl font-semibold">{item.name}</div>
+                                                        <div className="text-sm text-muted-foreground">{item.barcode}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center font-medium">{item.quantity}</td>
+                                                    <td className="px-6 py-4 text-right">{formatCurrency(item.unit_price)}</td>
+                                                    <td className="px-6 py-4 text-right font-semibold">
+                                                        {formatCurrency(item.line_total)}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <TablePagination
+                                page={transactionItemControls.page}
+                                pageCount={transactionItemControls.pageCount}
+                                onPageChange={transactionItemControls.goToPage}
+                                range={transactionItemControls.range}
+                                total={transactionItemControls.total}
+                                filteredTotal={transactionItemControls.filteredTotal}
+                            />
                         </div>
 
                         <div className="space-y-3 rounded-xl border border-border bg-background p-6 text-2xl">

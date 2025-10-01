@@ -1,3 +1,4 @@
+import { TablePagination, TableToolbar } from '@/components/table-controls';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,6 +13,7 @@ import {
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { FormEvent, useMemo } from 'react';
+import { useTableControls } from '@/hooks/use-table-controls';
 
 interface CashierOption {
     id: number;
@@ -174,6 +176,28 @@ export default function TransactionHistory({
             form.data.start_date,
         ],
     );
+
+    const transactionControls = useTableControls(transactions.data, {
+        searchFields: [
+            (row) => row.number,
+            (row) => row.cashier?.name ?? '',
+            (row) => row.customer?.name ?? '',
+        ],
+        filters: [
+            { label: 'Semua transaksi', value: 'all' },
+            {
+                label: 'Dengan pelanggan',
+                value: 'with-customer',
+                predicate: (row) => row.customer != null,
+            },
+            {
+                label: 'Tanpa pelanggan',
+                value: 'without-customer',
+                predicate: (row) => row.customer == null,
+            },
+        ],
+        initialPageSize: 10,
+    });
 
     const handleSubmit = (event: FormEvent) => {
         event.preventDefault();
@@ -433,6 +457,20 @@ export default function TransactionHistory({
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                        <TableToolbar
+                            searchTerm={transactionControls.searchTerm}
+                            onSearchChange={transactionControls.setSearchTerm}
+                            searchPlaceholder="Cari nomor transaksi atau nama kasir/pelanggan"
+                            filterOptions={transactionControls.filterOptions}
+                            filterValue={transactionControls.filterValue}
+                            onFilterChange={transactionControls.setFilterValue}
+                            pageSize={transactionControls.pageSize}
+                            pageSizeOptions={transactionControls.pageSizeOptions}
+                            onPageSizeChange={transactionControls.setPageSize}
+                            total={transactionControls.total}
+                            filteredTotal={transactionControls.filteredTotal}
+                        />
+
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-border text-left text-sm">
                                 <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
@@ -449,8 +487,26 @@ export default function TransactionHistory({
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border">
-                                    {transactions.data.length > 0 ? (
-                                        transactions.data.map((transaction) => (
+                                    {transactionControls.total === 0 ? (
+                                        <tr>
+                                            <td
+                                                colSpan={9}
+                                                className="px-4 py-6 text-center text-muted-foreground"
+                                            >
+                                                Tidak ada transaksi yang ditemukan untuk filter saat ini.
+                                            </td>
+                                        </tr>
+                                    ) : transactionControls.filteredTotal === 0 ? (
+                                        <tr>
+                                            <td
+                                                colSpan={9}
+                                                className="px-4 py-6 text-center text-muted-foreground"
+                                            >
+                                                Tidak ada transaksi yang cocok dengan pencarian atau filter tambahan.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        transactionControls.items.map((transaction) => (
                                             <tr key={transaction.id} className="hover:bg-muted/30">
                                                 <td className="px-4 py-3 font-medium">
                                                     {transaction.number}
@@ -502,54 +558,19 @@ export default function TransactionHistory({
                                                 </td>
                                             </tr>
                                         ))
-                                    ) : (
-                                        <tr>
-                                            <td
-                                                colSpan={9}
-                                                className="px-4 py-6 text-center text-muted-foreground"
-                                            >
-                                                Tidak ada transaksi yang cocok dengan filter saat ini.
-                                            </td>
-                                        </tr>
                                     )}
                                 </tbody>
                             </table>
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-muted-foreground">
-                            <div>
-                                Menampilkan {transactions.from ?? 0} - {transactions.to ?? 0} dari{' '}
-                                {transactions.total.toLocaleString('id-ID')} transaksi
-                            </div>
-                            <nav className="flex flex-wrap items-center gap-2">
-                                {transactions.links.map((link, index) => {
-                                    const classes = `rounded-md border px-3 py-1 text-sm transition-colors ${
-                                        link.active
-                                            ? 'border-primary bg-primary text-primary-foreground'
-                                            : 'border-border bg-background text-foreground hover:bg-muted'
-                                    }`;
-
-                                    if (link.url === null) {
-                                        return (
-                                            <span
-                                                key={`${link.label}-${index}`}
-                                                className={`${classes} pointer-events-none opacity-50`}
-                                                dangerouslySetInnerHTML={{ __html: link.label }}
-                                            />
-                                        );
-                                    }
-
-                                    return (
-                                        <Link
-                                            key={`${link.label}-${index}`}
-                                            href={link.url}
-                                            className={classes}
-                                            dangerouslySetInnerHTML={{ __html: link.label }}
-                                        />
-                                    );
-                                })}
-                            </nav>
-                        </div>
+                        <TablePagination
+                            page={transactionControls.page}
+                            pageCount={transactionControls.pageCount}
+                            onPageChange={transactionControls.goToPage}
+                            range={transactionControls.range}
+                            total={transactionControls.total}
+                            filteredTotal={transactionControls.filteredTotal}
+                        />
                     </CardContent>
                 </Card>
 
