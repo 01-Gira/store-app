@@ -2,6 +2,8 @@ import { TablePagination, TableToolbar } from '@/components/table-controls';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useTableControls } from '@/hooks/use-table-controls';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 import CustomerLayout from '@/layouts/customer-layout';
 import { type SharedData } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
@@ -18,6 +20,8 @@ interface TransactionItemSummary {
     line_total: number;
 }
 
+type PaymentMethod = 'cash' | 'card' | 'bank_transfer' | 'e_wallet' | 'other';
+
 interface TransactionSummary {
     id: number;
     number: string;
@@ -25,8 +29,13 @@ interface TransactionSummary {
     ppn_rate: number;
     subtotal: number;
     tax_total: number;
+    discount_total: number;
     total: number;
     items_count: number;
+    payment_method: PaymentMethod;
+    amount_paid: number;
+    change_due: number;
+    notes: string | null;
     user: { id: number; name: string } | null;
     customer:
         | {
@@ -88,6 +97,13 @@ export default function CustomerDisplay({
         [locale, timezone],
     );
     const numberLocale = locale;
+    const paymentMethodLabels: Record<PaymentMethod, string> = {
+        cash: 'Tunai',
+        card: 'Kartu',
+        bank_transfer: 'Transfer bank',
+        e_wallet: 'Dompet digital',
+        other: 'Lainnya',
+    };
 
     const formatCurrency = (value: number) => currencyFormatter.format(value);
     const formatDate = (value: string | null) => {
@@ -171,6 +187,9 @@ export default function CustomerDisplay({
         ],
         initialPageSize: 5,
     });
+    const paymentMethodLabel = transaction
+        ? paymentMethodLabels[transaction.payment_method] ?? transaction.payment_method
+        : '';
 
     return (
         <CustomerLayout>
@@ -322,20 +341,83 @@ export default function CustomerDisplay({
                             />
                         </div>
 
-                        <div className="space-y-3 rounded-xl border border-border bg-background p-6 text-2xl">
-                            <div className="flex items-center justify-between">
-                                <span>Subtotal</span>
-                                <span>{formatCurrency(transaction.subtotal)}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span>PPN ({transaction.ppn_rate}%)</span>
-                                <span>{formatCurrency(transaction.tax_total)}</span>
-                            </div>
+                        <div className="space-y-4 rounded-xl border border-border bg-background p-6">
                             <div className="flex items-center justify-between text-3xl font-bold">
                                 <span>Total Pembayaran</span>
                                 <span>{formatCurrency(transaction.total)}</span>
                             </div>
+                            <Separator />
+                            <div className="space-y-2 text-base">
+                                <div className="flex items-center justify-between text-sm">
+                                    <span>Jumlah item</span>
+                                    <span className="font-medium text-foreground">
+                                        {transaction.items_count.toLocaleString(numberLocale)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span>Subtotal</span>
+                                    <span className="font-medium">
+                                        {formatCurrency(transaction.subtotal)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span>PPN ({transaction.ppn_rate}%)</span>
+                                    <span className="font-medium">
+                                        {formatCurrency(transaction.tax_total)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span>Diskon</span>
+                                    <span
+                                        className={cn(
+                                            'font-medium',
+                                            transaction.discount_total > 0
+                                                ? 'text-destructive'
+                                                : 'text-muted-foreground',
+                                        )}
+                                    >
+                                        {transaction.discount_total > 0
+                                            ? `- ${formatCurrency(transaction.discount_total)}`
+                                            : formatCurrency(0)}
+                                    </span>
+                                </div>
+                            </div>
+                            <Separator />
+                            <div className="space-y-2 text-base">
+                                <div className="flex items-center justify-between">
+                                    <span>Metode pembayaran</span>
+                                    <span className="font-medium">{paymentMethodLabel}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span>Total dibayarkan</span>
+                                    <span className="font-semibold">
+                                        {formatCurrency(transaction.amount_paid)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span>Kembalian</span>
+                                    <span
+                                        className={cn(
+                                            'font-semibold',
+                                            transaction.change_due > 0
+                                                ? 'text-emerald-600 dark:text-emerald-400'
+                                                : 'text-muted-foreground',
+                                        )}
+                                    >
+                                        {formatCurrency(transaction.change_due)}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
+
+                        {transaction.notes && transaction.notes.trim() !== '' && (
+                            <div className="rounded-xl border border-border bg-background p-6 text-lg">
+                                <h3 className="text-2xl font-semibold">Catatan kasir</h3>
+                                <p className="mt-3 whitespace-pre-line text-base text-muted-foreground">
+                                    {transaction.notes}
+                                </p>
+                            </div>
+                        )}
 
                         {transaction.customer && (
                             <div className="rounded-xl border border-border bg-background p-6 text-lg">
