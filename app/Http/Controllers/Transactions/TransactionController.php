@@ -7,8 +7,12 @@ use App\Http\Requests\Transactions\StoreTransactionRequest;
 use App\Models\Product;
 use App\Models\StoreSetting;
 use App\Models\Transaction;
+use App\Models\User;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
@@ -29,6 +33,112 @@ class TransactionController extends Controller
             'recentTransactionId' => session('recentTransactionId'),
             'customerBaseUrl' => route('transactions.customer', ['transaction' => '__ID__']),
             'customerLatestUrl' => route('transactions.customer.latest'),
+        ]);
+    }
+
+    public function history(Request $request): Response
+    {
+        $validated = $request->validate([
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'cashier_id' => ['nullable', 'integer', 'exists:users,id'],
+            'min_total' => ['nullable', 'numeric', 'min:0'],
+            'max_total' => ['nullable', 'numeric', 'min:0', 'gte:min_total'],
+        ], [], [
+            'cashier_id' => 'cashier',
+            'min_total' => 'minimum total',
+            'max_total' => 'maximum total',
+        ]);
+
+        $filters = [
+            'start_date' => $validated['start_date'] ?? null,
+            'end_date' => $validated['end_date'] ?? null,
+            'cashier_id' => array_key_exists('cashier_id', $validated) && $validated['cashier_id'] !== null
+                ? (int) $validated['cashier_id']
+                : null,
+            'min_total' => array_key_exists('min_total', $validated) && $validated['min_total'] !== null
+                ? (float) $validated['min_total']
+                : null,
+            'max_total' => array_key_exists('max_total', $validated) && $validated['max_total'] !== null
+                ? (float) $validated['max_total']
+                : null,
+        ];
+
+        $transactionsQuery = Transaction::query()->with(['user']);
+        $this->applyHistoryFilters($transactionsQuery, $filters);
+
+        $transactions = $transactionsQuery
+            ->latest('created_at')
+            ->paginate(15)
+            ->withQueryString()
+            ->through(function (Transaction $transaction) {
+                return [
+                    'id' => $transaction->id,
+                    'number' => $transaction->number,
+                    'created_at' => $transaction->created_at?->toIso8601String(),
+                    'subtotal' => (float) $transaction->subtotal,
+                    'tax_total' => (float) $transaction->tax_total,
+                    'total' => (float) $transaction->total,
+                    'items_count' => $transaction->items_count,
+                    'cashier' => $transaction->user ? [
+                        'id' => $transaction->user->id,
+                        'name' => $transaction->user->name,
+                    ] : null,
+                    'detail_url' => route('transactions.customer', $transaction),
+                ];
+            });
+
+        $summaryQuery = Transaction::query();
+        $this->applyHistoryFilters($summaryQuery, $filters);
+
+        $summaryResult = $summaryQuery
+            ->selectRaw('COUNT(*) as transactions_count')
+            ->selectRaw('COALESCE(SUM(subtotal), 0) as subtotal_sum')
+            ->selectRaw('COALESCE(SUM(tax_total), 0) as tax_sum')
+            ->selectRaw('COALESCE(SUM(total), 0) as total_sum')
+            ->selectRaw('COALESCE(SUM(items_count), 0) as items_sum')
+            ->first();
+
+        $summary = [
+            'transactions' => (int) ($summaryResult?->transactions_count ?? 0),
+            'subtotal' => (float) ($summaryResult?->subtotal_sum ?? 0),
+            'tax_total' => (float) ($summaryResult?->tax_sum ?? 0),
+            'total' => (float) ($summaryResult?->total_sum ?? 0),
+            'items' => (int) ($summaryResult?->items_sum ?? 0),
+        ];
+
+        $dailyQuery = Transaction::query();
+        $this->applyHistoryFilters($dailyQuery, $filters);
+
+        $daily = $dailyQuery
+            ->dailyBreakdown()
+            ->get()
+            ->map(fn ($row) => [
+                'date' => Carbon::parse($row->date)->toDateString(),
+                'revenue' => (float) $row->revenue,
+                'transactions' => (int) $row->transactions,
+                'items' => (int) $row->items,
+            ])
+            ->values();
+
+        $cashiers = User::query()
+            ->select(['id', 'name'])
+            ->orderBy('name')
+            ->get()
+            ->map(fn (User $user) => [
+                'id' => $user->id,
+                'name' => $user->name,
+            ])
+            ->values();
+
+        return Inertia::render('transactions/history', [
+            'filters' => $filters,
+            'transactions' => $transactions,
+            'summary' => $summary,
+            'daily' => $daily,
+            'cashiers' => $cashiers,
+            'historyUrl' => route('transactions.history'),
+            'employeeUrl' => route('transactions.employee'),
         ]);
     }
 
@@ -190,5 +300,33 @@ class TransactionController extends Controller
         $prefix = 'TRX-' . now()->format('Ymd-His');
 
         return $prefix . '-' . Str::upper(Str::random(4));
+    }
+
+    /**
+     * @param  array{start_date: string|null, end_date: string|null, cashier_id: int|string|null, min_total: float|int|string|null, max_total: float|int|string|null}  $filters
+     */
+    protected function applyHistoryFilters(Builder $query, array $filters): void
+    {
+        if (($filters['start_date'] ?? null) !== null && $filters['start_date'] !== '') {
+            $start = Carbon::parse($filters['start_date'])->startOfDay();
+            $query->where('created_at', '>=', $start);
+        }
+
+        if (($filters['end_date'] ?? null) !== null && $filters['end_date'] !== '') {
+            $end = Carbon::parse($filters['end_date'])->endOfDay();
+            $query->where('created_at', '<=', $end);
+        }
+
+        if (($filters['cashier_id'] ?? null) !== null && $filters['cashier_id'] !== '') {
+            $query->where('user_id', (int) $filters['cashier_id']);
+        }
+
+        if (($filters['min_total'] ?? null) !== null && $filters['min_total'] !== '') {
+            $query->where('total', '>=', (float) $filters['min_total']);
+        }
+
+        if (($filters['max_total'] ?? null) !== null && $filters['max_total'] !== '') {
+            $query->where('total', '<=', (float) $filters['max_total']);
+        }
     }
 }
