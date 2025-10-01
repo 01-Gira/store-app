@@ -242,15 +242,22 @@ class TransactionController extends Controller
 
                     $product->decrement('stock', $item['quantity']);
 
+                    $unitCost = $product->cost_price !== null
+                        ? round((float) $product->cost_price, 2)
+                        : 0.0;
+                    $lineCost = round($unitCost * $item['quantity'], 2);
+
                     return [
                         'product_id' => $product->id,
                         'barcode' => $product->barcode,
                         'name' => $product->name,
                         'quantity' => $item['quantity'],
                         'unit_price' => $item['unit_price'],
+                        'unit_cost' => $unitCost,
                         'tax_rate' => $ppnRate,
                         'tax_amount' => $item['line_tax'],
                         'line_total' => $item['line_total'],
+                        'line_cost' => $lineCost,
                     ];
                 })->all(),
             );
@@ -327,9 +334,12 @@ class TransactionController extends Controller
                     'name' => $item->name,
                     'quantity' => $item->quantity,
                     'unit_price' => (float) $item->unit_price,
+                    'unit_cost' => (float) ($item->unit_cost ?? 0),
                     'tax_rate' => (float) $item->tax_rate,
                     'tax_amount' => (float) $item->tax_amount,
                     'line_total' => (float) $item->line_total,
+                    'line_cost' => (float) ($item->line_cost ?? 0),
+                    'profit' => (float) $item->line_total - (float) ($item->line_cost ?? 0),
                 ])
                 ->toArray(),
         ];
