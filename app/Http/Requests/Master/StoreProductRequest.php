@@ -23,10 +23,13 @@ class StoreProductRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'supplier_id' => ['nullable', 'integer', Rule::exists('suppliers', 'id')],
             'barcode' => ['required', 'string', 'max:255', Rule::unique('products', 'barcode')],
+            'supplier_sku' => ['nullable', 'string', 'max:255'],
             'name' => ['required', 'string', 'max:255'],
             'stock' => ['required', 'integer', 'min:0'],
             'price' => ['required', 'numeric', 'min:0'],
+            'cost_price' => ['nullable', 'numeric', 'min:0'],
             'reorder_point' => ['nullable', 'integer', 'min:0'],
             'reorder_quantity' => ['nullable', 'integer', 'min:0'],
             'image' => ['nullable', 'image', 'max:5120'],
@@ -38,8 +41,10 @@ class StoreProductRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->merge([
+            'supplier_id' => $this->normalizeNullableInteger('supplier_id'),
             'reorder_point' => $this->normalizeNullableInteger('reorder_point'),
             'reorder_quantity' => $this->normalizeNullableInteger('reorder_quantity'),
+            'cost_price' => $this->normalizeNullableNumeric('cost_price'),
         ]);
     }
 
@@ -53,6 +58,21 @@ class StoreProductRequest extends FormRequest
 
         if (is_numeric($value)) {
             return (int) $value;
+        }
+
+        return $value;
+    }
+
+    private function normalizeNullableNumeric(string $key): mixed
+    {
+        $value = $this->input($key);
+
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_numeric($value)) {
+            return (float) $value;
         }
 
         return $value;
