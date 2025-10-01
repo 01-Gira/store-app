@@ -1,4 +1,5 @@
 import InputError from '@/components/input-error';
+import { TablePagination, TableToolbar } from '@/components/table-controls';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,13 +16,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
+import { useTableControls } from '@/hooks/use-table-controls';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import {
     CheckCircle2,
     Clock,
-    Mail,
     PlusCircle,
     ShieldCheck,
     ShieldOff,
@@ -110,6 +111,38 @@ export default function UsersIndex({ users, roles }: UsersPageProps) {
     }, [clearEditErrors, isEditOpen, resetEditForm, setEditData, userBeingEdited]);
 
     const totalRoles = useMemo(() => roles.length, [roles.length]);
+
+    const userControls = useTableControls(users, {
+        searchFields: [
+            (user) => user.name,
+            (user) => user.email,
+            (user) => user.roles.map((role) => role.name).join(' '),
+        ],
+        filters: [
+            { label: 'All users', value: 'all' },
+            {
+                label: 'Email verified',
+                value: 'verified',
+                predicate: (user) => user.email_verified_at != null,
+            },
+            {
+                label: 'Email not verified',
+                value: 'unverified',
+                predicate: (user) => user.email_verified_at == null,
+            },
+            {
+                label: '2FA enabled',
+                value: '2fa-enabled',
+                predicate: (user) => user.two_factor_enabled,
+            },
+            {
+                label: '2FA disabled',
+                value: '2fa-disabled',
+                predicate: (user) => !user.two_factor_enabled,
+            },
+        ],
+        initialPageSize: 10,
+    });
 
     const handleCreateSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -291,32 +324,83 @@ export default function UsersIndex({ users, roles }: UsersPageProps) {
                                 </p>
                             </div>
                             <span className="text-sm text-muted-foreground">
-                                {users.length} user{users.length === 1 ? '' : 's'}
+                                {userControls.total} user{userControls.total === 1 ? '' : 's'}
                             </span>
                         </header>
 
-                        {users.length === 0 ? (
-                            <p className="rounded-lg border border-dashed border-sidebar-border/70 p-6 text-center text-sm text-muted-foreground dark:border-sidebar-border">
-                                No users available yet.
-                            </p>
-                        ) : (
-                            <div className="space-y-4">
-                                {users.map((user) => (
-                                    <article
-                                        key={user.id}
-                                        className="space-y-3 rounded-lg border border-sidebar-border/60 bg-background p-4 shadow-sm transition hover:border-sidebar-border dark:border-sidebar-border"
-                                    >
-                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                            <div className="space-y-2">
-                                                <div>
-                                                    <h3 className="text-base font-semibold leading-tight">{user.name}</h3>
-                                                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                        <Mail className="h-4 w-4" />
-                                                        {user.email}
-                                                    </p>
-                                                </div>
+                        <TableToolbar
+                            searchTerm={userControls.searchTerm}
+                            onSearchChange={userControls.setSearchTerm}
+                            searchPlaceholder="Search by name, email, or role"
+                            filterOptions={userControls.filterOptions}
+                            filterValue={userControls.filterValue}
+                            onFilterChange={userControls.setFilterValue}
+                            pageSize={userControls.pageSize}
+                            pageSizeOptions={userControls.pageSizeOptions}
+                            onPageSizeChange={userControls.setPageSize}
+                            total={userControls.total}
+                            filteredTotal={userControls.filteredTotal}
+                        />
 
-                                                <div className="flex flex-wrap gap-2">
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[720px] text-sm">
+                                <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                                    <tr>
+                                        <th className="px-3 py-2">User</th>
+                                        <th className="px-3 py-2">Roles</th>
+                                        <th className="px-3 py-2">Email status</th>
+                                        <th className="px-3 py-2">2FA</th>
+                                        <th className="px-3 py-2 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {userControls.total === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                                                No users available yet.
+                                            </td>
+                                        </tr>
+                                    ) : userControls.filteredTotal === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                                                No users match the applied search or filters.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        userControls.items.map((user) => (
+                                            <tr key={user.id} className="border-b border-muted/50 last:border-b-0">
+                                                <td className="px-3 py-3 align-top">
+                                                    <div className="flex flex-col gap-1">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <span className="font-medium">{user.name}</span>
+                                                            {user.is_protected && (
+                                                                <Badge variant="secondary" className="uppercase">
+                                                                    Protected
+                                                                </Badge>
+                                                            )}
+                                                            {user.id === currentUserId && (
+                                                                <Badge variant="outline" className="uppercase">
+                                                                    You
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-xs text-muted-foreground">{user.email}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-3 py-3 align-top">
+                                                    {user.roles.length > 0 ? (
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {user.roles.map((role) => (
+                                                                <Badge key={`${user.id}-${role.id}`} variant="secondary">
+                                                                    {role.name}
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-muted-foreground">No roles assigned</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-3 align-top">
                                                     {user.email_verified_at ? (
                                                         <Badge
                                                             variant="secondary"
@@ -334,14 +418,15 @@ export default function UsersIndex({ users, roles }: UsersPageProps) {
                                                             Verification pending
                                                         </Badge>
                                                     )}
-
+                                                </td>
+                                                <td className="px-3 py-3 align-top">
                                                     {user.two_factor_enabled ? (
                                                         <Badge
                                                             variant="secondary"
                                                             className="border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-100"
                                                         >
                                                             <ShieldCheck className="mr-1 h-3.5 w-3.5" />
-                                                            2FA enabled
+                                                            Enabled
                                                         </Badge>
                                                     ) : (
                                                         <Badge
@@ -349,169 +434,167 @@ export default function UsersIndex({ users, roles }: UsersPageProps) {
                                                             className="border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-900/40 dark:bg-slate-900/20 dark:text-slate-100"
                                                         >
                                                             <ShieldOff className="mr-1 h-3.5 w-3.5" />
-                                                            2FA disabled
+                                                            Disabled
                                                         </Badge>
                                                     )}
-                                                </div>
-                                            </div>
-
-                                            <div className="flex items-center gap-2">
-                                                <Dialog
-                                                    open={isEditOpen && userBeingEdited?.id === user.id}
-                                                    onOpenChange={(open) => {
-                                                        setIsEditOpen(open);
-                                                        if (open) {
-                                                            setUserBeingEdited(user);
-                                                        }
-                                                    }}
-                                                >
-                                                    <DialogTrigger asChild>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => {
-                                                                setUserBeingEdited(user);
-                                                                setIsEditOpen(true);
+                                                </td>
+                                                <td className="px-3 py-3">
+                                                    <div className="flex justify-end gap-2">
+                                                        <Dialog
+                                                            open={isEditOpen && userBeingEdited?.id === user.id}
+                                                            onOpenChange={(open) => {
+                                                                setIsEditOpen(open);
+                                                                if (open) {
+                                                                    setUserBeingEdited(user);
+                                                                }
                                                             }}
                                                         >
-                                                            Edit
+                                                            <DialogTrigger asChild>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => {
+                                                                        setUserBeingEdited(user);
+                                                                        setIsEditOpen(true);
+                                                                    }}
+                                                                >
+                                                                    Edit
+                                                                </Button>
+                                                            </DialogTrigger>
+                                                            <DialogContent>
+                                                                <DialogHeader>
+                                                                    <DialogTitle>Edit user</DialogTitle>
+                                                                    <DialogDescription>
+                                                                        Update account details or adjust role assignments.
+                                                                    </DialogDescription>
+                                                                </DialogHeader>
+
+                                                                <form onSubmit={handleEditSubmit} className="space-y-4">
+                                                                    <div className="space-y-2">
+                                                                        <Label htmlFor="edit-user-name">Name</Label>
+                                                                        <Input
+                                                                            id="edit-user-name"
+                                                                            value={editForm.data.name}
+                                                                            onChange={(event) =>
+                                                                                editForm.setData('name', event.target.value)
+                                                                            }
+                                                                        />
+                                                                        <InputError message={editForm.errors.name} />
+                                                                    </div>
+
+                                                                    <div className="space-y-2">
+                                                                        <Label htmlFor="edit-user-email">Email</Label>
+                                                                        <Input
+                                                                            id="edit-user-email"
+                                                                            type="email"
+                                                                            value={editForm.data.email}
+                                                                            onChange={(event) =>
+                                                                                editForm.setData('email', event.target.value)
+                                                                            }
+                                                                        />
+                                                                        <InputError message={editForm.errors.email} />
+                                                                    </div>
+
+                                                                    <div className="space-y-2">
+                                                                        <Label htmlFor="edit-user-password">New password</Label>
+                                                                        <Input
+                                                                            id="edit-user-password"
+                                                                            type="password"
+                                                                            value={editForm.data.password}
+                                                                            onChange={(event) =>
+                                                                                editForm.setData('password', event.target.value)
+                                                                            }
+                                                                            autoComplete="new-password"
+                                                                        />
+                                                                        <InputError message={editForm.errors.password} />
+                                                                    </div>
+
+                                                                    <div className="space-y-2">
+                                                                        <Label htmlFor="edit-user-password-confirmation">Confirm new password</Label>
+                                                                        <Input
+                                                                            id="edit-user-password-confirmation"
+                                                                            type="password"
+                                                                            value={editForm.data.password_confirmation}
+                                                                            onChange={(event) =>
+                                                                                editForm.setData(
+                                                                                    'password_confirmation',
+                                                                                    event.target.value,
+                                                                                )
+                                                                            }
+                                                                            autoComplete="new-password"
+                                                                        />
+                                                                    </div>
+
+                                                                    <div className="space-y-3">
+                                                                        <Label>Roles</Label>
+                                                                        <div className="grid gap-2">
+                                                                            {roles.map((role) => (
+                                                                                <label
+                                                                                    key={role.id}
+                                                                                    className="flex cursor-pointer items-center gap-3 rounded-lg border border-transparent px-3 py-2 transition hover:border-sidebar-border/70"
+                                                                                >
+                                                                                    <Checkbox
+                                                                                        checked={editForm.data.roles.includes(role.id)}
+                                                                                        onCheckedChange={(checked) =>
+                                                                                            editForm.setData(
+                                                                                                'roles',
+                                                                                                applyRoleSelection(
+                                                                                                    editForm.data.roles,
+                                                                                                    role.id,
+                                                                                                    checked === true,
+                                                                                                ),
+                                                                                            )
+                                                                                        }
+                                                                                    />
+                                                                                    <span className="text-sm font-medium">{role.name}</span>
+                                                                                </label>
+                                                                            ))}
+                                                                        </div>
+                                                                        <InputError message={editForm.errors.roles} />
+                                                                    </div>
+
+                                                                    <DialogFooter>
+                                                                        <Button type="button" variant="secondary" onClick={() => setIsEditOpen(false)}>
+                                                                            Cancel
+                                                                        </Button>
+                                                                        <Button type="submit" disabled={editForm.processing}>
+                                                                            Save changes
+                                                                        </Button>
+                                                                    </DialogFooter>
+                                                                </form>
+                                                            </DialogContent>
+                                                        </Dialog>
+
+                                                        <Button
+                                                            size="sm"
+                                                            variant="destructive"
+                                                            onClick={() => handleDelete(user)}
+                                                            disabled={
+                                                                user.is_protected ||
+                                                                user.id === currentUserId ||
+                                                                deleteForm.processing
+                                                            }
+                                                        >
+                                                            <Trash2 className="mr-2 h-4 w-4" />
+                                                            Delete
                                                         </Button>
-                                                    </DialogTrigger>
-                                                    <DialogContent>
-                                                        <DialogHeader>
-                                                            <DialogTitle>Edit user</DialogTitle>
-                                                            <DialogDescription>
-                                                                Update account details or adjust role assignments.
-                                                            </DialogDescription>
-                                                        </DialogHeader>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
 
-                                                        <form onSubmit={handleEditSubmit} className="space-y-4">
-                                                            <div className="space-y-2">
-                                                                <Label htmlFor="edit-user-name">Name</Label>
-                                                                <Input
-                                                                    id="edit-user-name"
-                                                                    value={editForm.data.name}
-                                                                    onChange={(event) =>
-                                                                        editForm.setData('name', event.target.value)
-                                                                    }
-                                                                />
-                                                                <InputError message={editForm.errors.name} />
-                                                            </div>
-
-                                                            <div className="space-y-2">
-                                                                <Label htmlFor="edit-user-email">Email</Label>
-                                                                <Input
-                                                                    id="edit-user-email"
-                                                                    type="email"
-                                                                    value={editForm.data.email}
-                                                                    onChange={(event) =>
-                                                                        editForm.setData('email', event.target.value)
-                                                                    }
-                                                                />
-                                                                <InputError message={editForm.errors.email} />
-                                                            </div>
-
-                                                            <div className="space-y-2">
-                                                                <Label htmlFor="edit-user-password">New password</Label>
-                                                                <Input
-                                                                    id="edit-user-password"
-                                                                    type="password"
-                                                                    value={editForm.data.password}
-                                                                    onChange={(event) =>
-                                                                        editForm.setData('password', event.target.value)
-                                                                    }
-                                                                    autoComplete="new-password"
-                                                                />
-                                                                <InputError message={editForm.errors.password} />
-                                                            </div>
-
-                                                            <div className="space-y-2">
-                                                                <Label htmlFor="edit-user-password-confirmation">Confirm new password</Label>
-                                                                <Input
-                                                                    id="edit-user-password-confirmation"
-                                                                    type="password"
-                                                                    value={editForm.data.password_confirmation}
-                                                                    onChange={(event) =>
-                                                                        editForm.setData(
-                                                                            'password_confirmation',
-                                                                            event.target.value,
-                                                                        )
-                                                                    }
-                                                                    autoComplete="new-password"
-                                                                />
-                                                            </div>
-
-                                                            <div className="space-y-3">
-                                                                <Label>Roles</Label>
-                                                                <div className="grid gap-2">
-                                                                    {roles.map((role) => (
-                                                                        <label
-                                                                            key={role.id}
-                                                                            className="flex cursor-pointer items-center gap-3 rounded-lg border border-transparent px-3 py-2 transition hover:border-sidebar-border/70"
-                                                                        >
-                                                                            <Checkbox
-                                                                                checked={editForm.data.roles.includes(role.id)}
-                                                                                onCheckedChange={(checked) =>
-                                                                                    editForm.setData(
-                                                                                        'roles',
-                                                                                        applyRoleSelection(
-                                                                                            editForm.data.roles,
-                                                                                            role.id,
-                                                                                            checked === true,
-                                                                                        ),
-                                                                                    )
-                                                                                }
-                                                                            />
-                                                                            <span className="text-sm font-medium">{role.name}</span>
-                                                                        </label>
-                                                                    ))}
-                                                                </div>
-                                                                <InputError message={editForm.errors.roles} />
-                                                            </div>
-
-                                                            <DialogFooter>
-                                                                <Button type="button" variant="secondary" onClick={() => setIsEditOpen(false)}>
-                                                                    Cancel
-                                                                </Button>
-                                                                <Button type="submit" disabled={editForm.processing}>
-                                                                    Save changes
-                                                                </Button>
-                                                            </DialogFooter>
-                                                        </form>
-                                                    </DialogContent>
-                                                </Dialog>
-
-                                                <Button
-                                                    size="sm"
-                                                    variant="destructive"
-                                                    onClick={() => handleDelete(user)}
-                                                    disabled={
-                                                        user.is_protected ||
-                                                        user.id === currentUserId ||
-                                                        deleteForm.processing
-                                                    }
-                                                >
-                                                    <Trash2 className="mr-2 h-4 w-4" />
-                                                    Delete
-                                                </Button>
-                                            </div>
-                                        </div>
-
-                                        {user.roles.length > 0 ? (
-                                            <div className="flex flex-wrap gap-2">
-                                                {user.roles.map((role) => (
-                                                    <Badge key={`${user.id}-${role.id}`} variant="secondary">
-                                                        {role.name}
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <p className="text-sm text-muted-foreground">No roles assigned.</p>
-                                        )}
-                                    </article>
-                                ))}
-                            </div>
-                        )}
+                        <TablePagination
+                            page={userControls.page}
+                            pageCount={userControls.pageCount}
+                            onPageChange={userControls.goToPage}
+                            range={userControls.range}
+                            total={userControls.total}
+                            filteredTotal={userControls.filteredTotal}
+                        />
                     </section>
                 </div>
             </div>

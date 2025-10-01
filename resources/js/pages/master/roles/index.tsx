@@ -1,4 +1,5 @@
 import InputError from '@/components/input-error';
+import { TablePagination, TableToolbar } from '@/components/table-controls';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
+import { useTableControls } from '@/hooks/use-table-controls';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
@@ -95,6 +97,27 @@ export default function RolesIndex({
     }, [clearEditErrors, isEditOpen, resetEditForm, roleBeingEdited, setEditData]);
 
     const totalPermissions = useMemo(() => permissions.length, [permissions.length]);
+
+    const roleControls = useTableControls(roles, {
+        searchFields: [
+            (role) => role.name,
+            (role) => role.permissions.map((permission) => permission.name).join(' '),
+        ],
+        filters: [
+            { label: 'All roles', value: 'all' },
+            {
+                label: 'Protected roles',
+                value: 'protected',
+                predicate: (role) => role.is_protected,
+            },
+            {
+                label: 'Roles without users',
+                value: 'without-users',
+                predicate: (role) => role.users_count === 0,
+            },
+        ],
+        initialPageSize: 10,
+    });
 
     const handleCreateSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -240,173 +263,200 @@ export default function RolesIndex({
                             <div>
                                 <h2 className="text-lg font-semibold">Existing roles</h2>
                                 <p className="text-sm text-muted-foreground">
-                                    Assign permissions or make changes to existing roles.
+                                    Assign and manage role permissions for your team.
                                 </p>
                             </div>
                             <span className="text-sm text-muted-foreground">
-                                {roles.length} role{roles.length === 1 ? '' : 's'}
+                                {roleControls.total} role{roleControls.total === 1 ? '' : 's'}
                             </span>
                         </header>
 
-                        {roles.length === 0 ? (
-                            <p className="rounded-lg border border-dashed border-sidebar-border/70 p-6 text-sm text-muted-foreground text-center dark:border-sidebar-border">
-                                No roles created yet.
-                            </p>
-                        ) : (
-                            <div className="space-y-4">
-                                {roles.map((role) => (
-                                    <article
-                                        key={role.id}
-                                        className="space-y-3 rounded-lg border border-sidebar-border/60 bg-background p-4 shadow-sm transition hover:border-sidebar-border dark:border-sidebar-border"
-                                    >
-                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                            <div className="space-y-1">
-                                                <h3 className="text-base font-semibold leading-tight">
-                                                    {role.name}
-                                                </h3>
-                                                <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                                    {role.users_count} user{role.users_count === 1 ? '' : 's'} assigned
-                                                </p>
-                                            </div>
+                        <TableToolbar
+                            searchTerm={roleControls.searchTerm}
+                            onSearchChange={roleControls.setSearchTerm}
+                            searchPlaceholder="Search by role or permission name"
+                            filterOptions={roleControls.filterOptions}
+                            filterValue={roleControls.filterValue}
+                            onFilterChange={roleControls.setFilterValue}
+                            pageSize={roleControls.pageSize}
+                            pageSizeOptions={roleControls.pageSizeOptions}
+                            onPageSizeChange={roleControls.setPageSize}
+                            total={roleControls.total}
+                            filteredTotal={roleControls.filteredTotal}
+                        />
 
-                                            <div className="flex items-center gap-2">
-                                                <Dialog
-                                                    open={isEditOpen && roleBeingEdited?.id === role.id}
-                                                    onOpenChange={(open) => {
-                                                        setIsEditOpen(open);
-                                                        if (open) {
-                                                            setRoleBeingEdited(role);
-                                                        }
-                                                    }}
-                                                >
-                                                    <DialogTrigger asChild>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => {
-                                                                setRoleBeingEdited(role);
-                                                                setIsEditOpen(true);
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[720px] text-sm">
+                                <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                                    <tr>
+                                        <th className="px-3 py-2">Role</th>
+                                        <th className="px-3 py-2">Permissions</th>
+                                        <th className="px-3 py-2 text-right">Users</th>
+                                        <th className="px-3 py-2 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {roleControls.total === 0 ? (
+                                        <tr>
+                                            <td colSpan={4} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                                                No roles created yet.
+                                            </td>
+                                        </tr>
+                                    ) : roleControls.filteredTotal === 0 ? (
+                                        <tr>
+                                            <td colSpan={4} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                                                No roles match the applied search or filters.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        roleControls.items.map((role) => (
+                                            <tr key={role.id} className="border-b border-muted/50 last:border-b-0">
+                                                <td className="px-3 py-3 align-top">
+                                                    <div className="flex flex-col gap-1">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <span className="font-medium">{role.name}</span>
+                                                            {role.is_protected && (
+                                                                <Badge variant="secondary" className="uppercase">
+                                                                    Protected
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-xs text-muted-foreground">
+                                                            Assigned to {role.users_count} user{role.users_count === 1 ? '' : 's'}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-3 py-3 align-top">
+                                                    {role.permissions.length > 0 ? (
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {role.permissions.map((permission) => (
+                                                                <Badge key={`${role.id}-${permission.id}`} variant="secondary">
+                                                                    {permission.name}
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-muted-foreground">No permissions assigned</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-3 text-right align-top">{role.users_count}</td>
+                                                <td className="px-3 py-3">
+                                                    <div className="flex justify-end gap-2">
+                                                        <Dialog
+                                                            open={isEditOpen && roleBeingEdited?.id === role.id}
+                                                            onOpenChange={(open) => {
+                                                                setIsEditOpen(open);
+                                                                if (open) {
+                                                                    setRoleBeingEdited(role);
+                                                                }
                                                             }}
                                                         >
-                                                            Edit
-                                                        </Button>
-                                                    </DialogTrigger>
-                                                    <DialogContent>
-                                                        <DialogHeader>
-                                                            <DialogTitle>Edit role</DialogTitle>
-                                                            <DialogDescription>
-                                                                Update the role name or adjust its permissions.
-                                                            </DialogDescription>
-                                                        </DialogHeader>
+                                                            <DialogTrigger asChild>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => {
+                                                                        setRoleBeingEdited(role);
+                                                                        setIsEditOpen(true);
+                                                                    }}
+                                                                >
+                                                                    Edit
+                                                                </Button>
+                                                            </DialogTrigger>
+                                                            <DialogContent>
+                                                                <DialogHeader>
+                                                                    <DialogTitle>Edit role</DialogTitle>
+                                                                    <DialogDescription>
+                                                                        Update the role name or adjust permission assignments.
+                                                                    </DialogDescription>
+                                                                </DialogHeader>
 
-                                                        <form
-                                                            onSubmit={handleEditSubmit}
-                                                            className="space-y-4"
-                                                        >
-                                                            <div className="space-y-2">
-                                                                <Label htmlFor="edit-role-name">
-                                                                    Role name
-                                                                </Label>
-                                                                <Input
-                                                                    id="edit-role-name"
-                                                                    value={editForm.data.name}
-                                                                    onChange={(event) =>
-                                                                        editForm.setData(
-                                                                            'name',
-                                                                            event.target.value,
-                                                                        )
-                                                                    }
-                                                                />
-                                                                <InputError
-                                                                    message={editForm.errors.name}
-                                                                />
-                                                            </div>
+                                                                <form onSubmit={handleEditSubmit} className="space-y-4">
+                                                                    <div className="space-y-2">
+                                                                        <Label htmlFor="edit-role-name">Role name</Label>
+                                                                        <Input
+                                                                            id="edit-role-name"
+                                                                            value={editForm.data.name}
+                                                                            onChange={(event) =>
+                                                                                editForm.setData('name', event.target.value)
+                                                                            }
+                                                                            autoComplete="off"
+                                                                        />
+                                                                        <InputError message={editForm.errors.name} />
+                                                                    </div>
 
-                                                            <div className="space-y-3">
-                                                                <Label>Permissions</Label>
-                                                                <div className="grid gap-2">
-                                                                    {permissions.map((permission) => (
-                                                                        <label
-                                                                            key={permission.id}
-                                                                            className="flex cursor-pointer items-center gap-3 rounded-lg border border-transparent px-3 py-2 transition hover:border-sidebar-border/70"
-                                                                        >
-                                                                            <Checkbox
-                                                                                checked={editForm.data.permissions.includes(
-                                                                                    permission.id,
-                                                                                )}
-                                                                                onCheckedChange={(checked) =>
-                                                                                    editForm.setData(
-                                                                                        'permissions',
-                                                                                        applyPermissionSelection(
-                                                                                            editForm.data.permissions,
-                                                                                            permission.id,
-                                                                                            checked === true,
-                                                                                        ),
-                                                                                    )
-                                                                                }
-                                                                            />
-                                                                            <span className="text-sm font-medium">
-                                                                                {permission.name}
+                                                                    <div className="space-y-3">
+                                                                        <div className="flex items-center justify-between">
+                                                                            <Label>Permissions</Label>
+                                                                            <span className="text-xs text-muted-foreground">
+                                                                                {editForm.data.permissions.length} of {totalPermissions} selected
                                                                             </span>
-                                                                        </label>
-                                                                    ))}
-                                                                </div>
-                                                                <InputError
-                                                                    message={editForm.errors.permissions}
-                                                                />
-                                                            </div>
+                                                                        </div>
 
-                                                            <DialogFooter>
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="secondary"
-                                                                    onClick={() => setIsEditOpen(false)}
-                                                                >
-                                                                    Cancel
-                                                                </Button>
-                                                                <Button
-                                                                    type="submit"
-                                                                    disabled={editForm.processing}
-                                                                >
-                                                                    Save changes
-                                                                </Button>
-                                                            </DialogFooter>
-                                                        </form>
-                                                    </DialogContent>
-                                                </Dialog>
+                                                                        <div className="grid gap-2">
+                                                                            {permissions.map((permission) => (
+                                                                                <label
+                                                                                    key={permission.id}
+                                                                                    className="flex cursor-pointer items-center gap-3 rounded-lg border border-transparent px-3 py-2 transition hover:border-sidebar-border/70"
+                                                                                >
+                                                                                    <Checkbox
+                                                                                        checked={editForm.data.permissions.includes(permission.id)}
+                                                                                        onCheckedChange={(checked) =>
+                                                                                            editForm.setData(
+                                                                                                'permissions',
+                                                                                                applyPermissionSelection(
+                                                                                                    editForm.data.permissions,
+                                                                                                    permission.id,
+                                                                                                    checked === true,
+                                                                                                ),
+                                                                                            )
+                                                                                        }
+                                                                                    />
+                                                                                    <span className="text-sm font-medium">{permission.name}</span>
+                                                                                </label>
+                                                                            ))}
+                                                                        </div>
+                                                                        <InputError message={editForm.errors.permissions} />
+                                                                    </div>
 
-                                                <Button
-                                                    size="sm"
-                                                    variant="destructive"
-                                                    onClick={() => handleDelete(role)}
-                                                    disabled={role.is_protected || deleteForm.processing}
-                                                >
-                                                    <Trash2 className="mr-2 h-4 w-4" />
-                                                    Delete
-                                                </Button>
-                                            </div>
-                                        </div>
+                                                                    <DialogFooter>
+                                                                        <Button type="button" variant="secondary" onClick={() => setIsEditOpen(false)}>
+                                                                            Cancel
+                                                                        </Button>
+                                                                        <Button type="submit" disabled={editForm.processing}>
+                                                                            Save changes
+                                                                        </Button>
+                                                                    </DialogFooter>
+                                                                </form>
+                                                            </DialogContent>
+                                                        </Dialog>
 
-                                        {role.permissions.length > 0 ? (
-                                            <div className="flex flex-wrap gap-2">
-                                                {role.permissions.map((permission) => (
-                                                    <Badge
-                                                        key={`${role.id}-${permission.id}`}
-                                                        variant="secondary"
-                                                    >
-                                                        {permission.name}
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <p className="text-sm text-muted-foreground">
-                                                No permissions assigned to this role yet.
-                                            </p>
-                                        )}
-                                    </article>
-                                ))}
-                            </div>
-                        )}
+                                                        <Button
+                                                            size="sm"
+                                                            variant="destructive"
+                                                            onClick={() => handleDelete(role)}
+                                                            disabled={role.is_protected || deleteForm.processing}
+                                                        >
+                                                            <Trash2 className="mr-2 h-4 w-4" />
+                                                            Delete
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <TablePagination
+                            page={roleControls.page}
+                            pageCount={roleControls.pageCount}
+                            onPageChange={roleControls.goToPage}
+                            range={roleControls.range}
+                            total={roleControls.total}
+                            filteredTotal={roleControls.filteredTotal}
+                        />
                     </section>
                 </div>
             </div>
