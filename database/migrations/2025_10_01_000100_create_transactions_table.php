@@ -19,7 +19,12 @@ return new class extends Migration
             $table->decimal('ppn_rate', 5, 2);
             $table->decimal('subtotal', 12, 2);
             $table->decimal('tax_total', 12, 2);
+            $table->decimal('discount_total', 12, 2)->default(0);
             $table->decimal('total', 12, 2);
+            $table->string('payment_method', 50);
+            $table->decimal('amount_paid', 12, 2);
+            $table->decimal('change_due', 12, 2);
+            $table->text('notes')->nullable();
             $table->timestamps();
         });
     }

@@ -23,7 +23,12 @@ class Transaction extends Model
         'ppn_rate',
         'subtotal',
         'tax_total',
+        'discount_total',
         'total',
+        'payment_method',
+        'amount_paid',
+        'change_due',
+        'notes',
     ];
 
     /**
@@ -33,7 +38,10 @@ class Transaction extends Model
         'ppn_rate' => 'decimal:2',
         'subtotal' => 'decimal:2',
         'tax_total' => 'decimal:2',
+        'discount_total' => 'decimal:2',
         'total' => 'decimal:2',
+        'amount_paid' => 'decimal:2',
+        'change_due' => 'decimal:2',
     ];
 
     public function items(): HasMany

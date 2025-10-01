@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import AppLayout from '@/layouts/app-layout';
 import { type SharedData } from '@/types';
 import { Head, useForm, usePage } from '@inertiajs/react';
@@ -38,6 +40,20 @@ const formatCurrency = (value: number) =>
         minimumFractionDigits: 2,
     }).format(value);
 
+const roundCurrency = (value: number) => Math.round(value * 100) / 100;
+
+type DiscountType = 'percentage' | 'value';
+type PaymentMethod = 'cash' | 'card' | 'bank_transfer' | 'e_wallet' | 'other';
+
+interface TransactionFormData {
+    items: { product_id: number; quantity: number }[];
+    discount_type: DiscountType | null;
+    discount_value: number | null;
+    payment_method: PaymentMethod;
+    amount_paid: number;
+    notes: string;
+}
+
 const buildUrl = (template: string, placeholder: string, value: string | number) =>
     template.replace(placeholder, encodeURIComponent(String(value)));
 
@@ -60,8 +76,19 @@ export default function EmployeeTransactions({
     const readerRef = useRef<BrowserMultiFormatReader | null>(null);
     const processedBarcodesRef = useRef<Set<string>>(new Set());
 
-    const form = useForm<{ items: { product_id: number; quantity: number }[] }>({
+    const [discountType, setDiscountType] = useState<DiscountType | null>(null);
+    const [discountValueInput, setDiscountValueInput] = useState('');
+    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+    const [amountPaidInput, setAmountPaidInput] = useState('');
+    const [notes, setNotes] = useState('');
+
+    const form = useForm<TransactionFormData>({
         items: [],
+        discount_type: null,
+        discount_value: null,
+        payment_method: 'cash',
+        amount_paid: 0,
+        notes: '',
     });
 
     const totals = useMemo(() => {
@@ -78,6 +105,43 @@ export default function EmployeeTransactions({
             total,
         };
     }, [items, ppnRate]);
+
+    const discountAmount = useMemo(() => {
+        if (!discountType) {
+            return 0;
+        }
+
+        const parsed = Number.parseFloat(discountValueInput);
+        if (Number.isNaN(parsed) || parsed <= 0) {
+            return 0;
+        }
+
+        if (discountType === 'percentage') {
+            const bounded = Math.min(Math.max(parsed, 0), 100);
+            return roundCurrency(totals.total * (bounded / 100));
+        }
+
+        return roundCurrency(Math.min(parsed, totals.total));
+    }, [discountType, discountValueInput, totals.total]);
+
+    const amountDue = useMemo(
+        () => roundCurrency(Math.max(totals.total - discountAmount, 0)),
+        [totals.total, discountAmount],
+    );
+
+    const normalizedAmountPaid = useMemo(() => {
+        const parsed = Number.parseFloat(amountPaidInput);
+        if (Number.isNaN(parsed) || parsed <= 0) {
+            return 0;
+        }
+
+        return roundCurrency(parsed);
+    }, [amountPaidInput]);
+
+    const changeDue = useMemo(
+        () => roundCurrency(Math.max(normalizedAmountPaid - amountDue, 0)),
+        [normalizedAmountPaid, amountDue],
+    );
 
     const customerUrl =
         recentTransactionId != null
@@ -205,6 +269,69 @@ export default function EmployeeTransactions({
         setLookupError(null);
     };
 
+    const handleDiscountTypeChange = (value: string) => {
+        if (value === 'none') {
+            setDiscountType(null);
+            setDiscountValueInput('');
+            form.setData('discount_type', null);
+            form.setData('discount_value', null);
+            return;
+        }
+
+        const nextType = value as DiscountType;
+        setDiscountType(nextType);
+        form.setData('discount_type', nextType);
+
+        if (discountValueInput.trim() !== '') {
+            const parsed = Number.parseFloat(discountValueInput);
+            if (Number.isNaN(parsed) || parsed < 0) {
+                form.setData('discount_value', null);
+            } else {
+                form.setData('discount_value', parsed);
+            }
+        }
+    };
+
+    const handleDiscountValueChange = (value: string) => {
+        setDiscountValueInput(value);
+
+        if (!discountType) {
+            form.setData('discount_value', null);
+            return;
+        }
+
+        const parsed = Number.parseFloat(value);
+        if (Number.isNaN(parsed) || parsed < 0) {
+            form.setData('discount_value', null);
+            return;
+        }
+
+        form.setData('discount_value', parsed);
+    };
+
+    const handlePaymentMethodChange = (value: string) => {
+        const method = value as PaymentMethod;
+        setPaymentMethod(method);
+        form.setData('payment_method', method);
+    };
+
+    const handleAmountPaidChange = (value: string) => {
+        setAmountPaidInput(value);
+
+        const parsed = Number.parseFloat(value);
+        if (Number.isNaN(parsed) || parsed < 0) {
+            form.setData('amount_paid', 0);
+            return;
+        }
+
+        form.setData('amount_paid', roundCurrency(parsed));
+    };
+
+    const handleNotesChange = (value: string) => {
+        setNotes(value);
+        form.setData('notes', value);
+    };
+
     const handleManualSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         if (!manualBarcode.trim()) {
@@ -273,6 +400,11 @@ export default function EmployeeTransactions({
             preserveScroll: true,
             onSuccess: () => {
                 setItems([]);
+                setDiscountType(null);
+                setDiscountValueInput('');
+                setPaymentMethod('cash');
+                setAmountPaidInput('');
+                setNotes('');
                 form.reset();
             },
         });
@@ -494,9 +626,26 @@ export default function EmployeeTransactions({
                                     <span>PPN ({ppnRate}%)</span>
                                     <span className="font-medium">{formatCurrency(totals.tax)}</span>
                                 </div>
+                                <div className="flex items-center justify-between">
+                                    <span>Discount</span>
+                                    <span className="font-medium text-destructive">
+                                        {discountAmount > 0
+                                            ? `- ${formatCurrency(discountAmount)}`
+                                            : formatCurrency(0)}
+                                    </span>
+                                </div>
+                                <Separator className="my-2" />
                                 <div className="flex items-center justify-between text-base font-semibold">
-                                    <span>Total</span>
-                                    <span>{formatCurrency(totals.total)}</span>
+                                    <span>Amount due</span>
+                                    <span>{formatCurrency(amountDue)}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span>Amount paid</span>
+                                    <span className="font-medium">{formatCurrency(normalizedAmountPaid)}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span>Change due</span>
+                                    <span className="font-medium">{formatCurrency(changeDue)}</span>
                                 </div>
                             </div>
                         </Card>
@@ -511,6 +660,96 @@ export default function EmployeeTransactions({
                                 </div>
 
                                 <InputError message={form.errors.items} />
+
+                                <div className="grid gap-3">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="discount-type">Discount type</Label>
+                                        <Select
+                                            value={discountType ?? 'none'}
+                                            onValueChange={handleDiscountTypeChange}
+                                        >
+                                            <SelectTrigger id="discount-type">
+                                                <SelectValue placeholder="No discount" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">No discount</SelectItem>
+                                                <SelectItem value="percentage">Percentage</SelectItem>
+                                                <SelectItem value="value">Fixed amount</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <InputError message={form.errors.discount_type} />
+                                    </div>
+
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="discount-value">
+                                            {discountType === 'percentage' ? 'Discount (%)' : 'Discount amount'}
+                                        </Label>
+                                        <Input
+                                            id="discount-value"
+                                            type="number"
+                                            inputMode="decimal"
+                                            step="0.01"
+                                            min={0}
+                                            max={discountType === 'percentage' ? 100 : undefined}
+                                            value={discountValueInput}
+                                            onChange={(event) =>
+                                                handleDiscountValueChange(event.target.value)
+                                            }
+                                            disabled={!discountType}
+                                        />
+                                        <InputError message={form.errors.discount_value} />
+                                    </div>
+                                </div>
+
+                                <div className="grid gap-3">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="payment-method">Payment method</Label>
+                                        <Select
+                                            value={paymentMethod}
+                                            onValueChange={handlePaymentMethodChange}
+                                        >
+                                            <SelectTrigger id="payment-method">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="cash">Cash</SelectItem>
+                                                <SelectItem value="card">Card</SelectItem>
+                                                <SelectItem value="bank_transfer">Bank transfer</SelectItem>
+                                                <SelectItem value="e_wallet">E-wallet</SelectItem>
+                                                <SelectItem value="other">Other</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <InputError message={form.errors.payment_method} />
+                                    </div>
+
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="amount-paid">Amount paid</Label>
+                                        <Input
+                                            id="amount-paid"
+                                            type="number"
+                                            inputMode="decimal"
+                                            step="0.01"
+                                            min={0}
+                                            value={amountPaidInput}
+                                            onChange={(event) =>
+                                                handleAmountPaidChange(event.target.value)
+                                            }
+                                        />
+                                        <InputError message={form.errors.amount_paid} />
+                                    </div>
+                                </div>
+
+                                <div className="grid gap-2">
+                                    <Label htmlFor="notes">Notes (optional)</Label>
+                                    <textarea
+                                        id="notes"
+                                        value={notes}
+                                        onChange={(event) => handleNotesChange(event.target.value)}
+                                        className="min-h-[96px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        placeholder="Add any remarks for this sale"
+                                    />
+                                    <InputError message={form.errors.notes} />
+                                </div>
 
                                 <Button type="submit" className="w-full" disabled={form.processing || items.length === 0}>
                                     Complete transaction

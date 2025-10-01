@@ -187,9 +187,39 @@ class TransactionController extends Controller
 
         $subtotal = $items->sum('line_subtotal');
         $taxTotal = $items->sum('line_tax');
-        $total = $items->sum('line_total');
+        $grossTotal = $items->sum('line_total');
 
-        $transaction = DB::transaction(function () use ($items, $subtotal, $taxTotal, $total, $ppnRate, $request) {
+        $discountType = $request->validated('discount_type');
+        $rawDiscountValue = $request->validated('discount_value');
+        $discountValue = $rawDiscountValue !== null ? (float) $rawDiscountValue : null;
+
+        $discountTotal = 0.0;
+
+        if ($discountType === 'percentage' && $discountValue !== null) {
+            $discountTotal = round($grossTotal * ($discountValue / 100), 2);
+        } elseif ($discountType === 'value' && $discountValue !== null) {
+            $discountTotal = round($discountValue, 2);
+        }
+
+        if ($discountTotal > $grossTotal) {
+            $discountTotal = $grossTotal;
+        }
+
+        $total = round(max($grossTotal - $discountTotal, 0), 2);
+
+        $amountPaid = (float) $request->validated('amount_paid');
+
+        if ($amountPaid < $total) {
+            throw ValidationException::withMessages([
+                'amount_paid' => 'Amount paid must be at least the total due.',
+            ]);
+        }
+
+        $changeDue = round(max($amountPaid - $total, 0), 2);
+        $paymentMethod = $request->validated('payment_method');
+        $notes = $request->validated('notes');
+
+        $transaction = DB::transaction(function () use ($items, $subtotal, $taxTotal, $total, $discountTotal, $ppnRate, $request, $amountPaid, $changeDue, $paymentMethod, $notes) {
             $transaction = Transaction::query()->create([
                 'number' => $this->generateNumber(),
                 'user_id' => $request->user()?->id,
@@ -197,7 +227,12 @@ class TransactionController extends Controller
                 'ppn_rate' => $ppnRate,
                 'subtotal' => $subtotal,
                 'tax_total' => $taxTotal,
+                'discount_total' => $discountTotal,
                 'total' => $total,
+                'payment_method' => $paymentMethod,
+                'amount_paid' => $amountPaid,
+                'change_due' => $changeDue,
+                'notes' => $notes,
             ]);
 
             $transaction->items()->createMany(
@@ -273,8 +308,13 @@ class TransactionController extends Controller
             'ppn_rate' => (float) $transaction->ppn_rate,
             'subtotal' => (float) $transaction->subtotal,
             'tax_total' => (float) $transaction->tax_total,
+            'discount_total' => (float) $transaction->discount_total,
             'total' => (float) $transaction->total,
             'items_count' => $transaction->items_count,
+            'payment_method' => $transaction->payment_method,
+            'amount_paid' => (float) $transaction->amount_paid,
+            'change_due' => (float) $transaction->change_due,
+            'notes' => $transaction->notes,
             'user' => $transaction->user ? [
                 'id' => $transaction->user->id,
                 'name' => $transaction->user->name,
