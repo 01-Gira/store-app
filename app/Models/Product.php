@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -21,6 +22,8 @@ class Product extends Model
         'stock',
         'price',
         'image_path',
+        'reorder_point',
+        'reorder_quantity',
     ];
 
     /**
@@ -31,6 +34,8 @@ class Product extends Model
     protected $casts = [
         'stock' => 'integer',
         'price' => 'decimal:2',
+        'reorder_point' => 'integer',
+        'reorder_quantity' => 'integer',
     ];
 
     /**
@@ -39,5 +44,29 @@ class Product extends Model
     public function categories(): BelongsToMany
     {
         return $this->belongsToMany(Category::class)->withTimestamps();
+    }
+
+    public function scopeBelowReorderPoint(Builder $query, int $fallback): Builder
+    {
+        return $query->where(static function (Builder $builder) use ($fallback): void {
+            $builder
+                ->whereNotNull('reorder_point')
+                ->whereColumn('stock', '<=', 'reorder_point')
+                ->orWhere(static function (Builder $orQuery) use ($fallback): void {
+                    $orQuery
+                        ->whereNull('reorder_point')
+                        ->where('stock', '<=', $fallback);
+                });
+        });
+    }
+
+    public function effectiveReorderPoint(int $fallback): int
+    {
+        return $this->reorder_point ?? $fallback;
+    }
+
+    public function isBelowReorderPoint(int $fallback): bool
+    {
+        return $this->stock <= $this->effectiveReorderPoint($fallback);
     }
 }

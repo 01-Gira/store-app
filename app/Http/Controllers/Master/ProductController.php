@@ -26,11 +26,13 @@ class ProductController extends Controller
      */
     public function index(): Response
     {
+        $defaultReorderPoint = (int) config('store.inventory.low_stock_threshold', 0);
+
         $products = Product::query()
             ->with('categories')
             ->latest()
             ->get()
-            ->map(function (Product $product): array {
+            ->map(function (Product $product) use ($defaultReorderPoint): array {
                 $imageUrl = null;
 
                 if ($product->image_path && Storage::disk('public')->exists($product->image_path)) {
@@ -45,6 +47,10 @@ class ProductController extends Controller
                     'price' => $product->price,
                     'image_path' => $product->image_path,
                     'image_url' => $imageUrl,
+                    'reorder_point' => $product->reorder_point,
+                    'reorder_quantity' => $product->reorder_quantity,
+                    'effective_reorder_point' => $product->effectiveReorderPoint($defaultReorderPoint),
+                    'is_low_stock' => $product->isBelowReorderPoint($defaultReorderPoint),
                     'created_at' => $product->created_at?->toISOString(),
                     'updated_at' => $product->updated_at?->toISOString(),
                     'categories' => $product->categories
@@ -69,6 +75,7 @@ class ProductController extends Controller
         return Inertia::render('master/products/index', [
             'products' => $products,
             'availableCategories' => $availableCategories,
+            'defaultReorderPoint' => $defaultReorderPoint,
         ]);
     }
 
@@ -89,6 +96,8 @@ class ProductController extends Controller
             $data['image_path'] = $request->file('image')->store('products', 'public');
         }
 
+        $data['reorder_point'] = $data['reorder_point'] ?? null;
+        $data['reorder_quantity'] = $data['reorder_quantity'] ?? null;
         unset($data['image'], $data['category_ids']);
 
         $product = Product::create($data);
@@ -127,6 +136,8 @@ class ProductController extends Controller
             $data['image_path'] = $request->file('image')->store('products', 'public');
         }
 
+        $data['reorder_point'] = $data['reorder_point'] ?? null;
+        $data['reorder_quantity'] = $data['reorder_quantity'] ?? null;
         unset($data['image'], $data['remove_image'], $data['category_ids']);
 
         $product->update($data);

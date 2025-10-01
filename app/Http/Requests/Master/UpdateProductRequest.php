@@ -36,10 +36,35 @@ class UpdateProductRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'stock' => ['required', 'integer', 'min:0'],
             'price' => ['required', 'numeric', 'min:0'],
+            'reorder_point' => ['nullable', 'integer', 'min:0'],
+            'reorder_quantity' => ['nullable', 'integer', 'min:0'],
             'image' => ['nullable', 'image', 'max:5120'],
             'remove_image' => ['sometimes', 'boolean'],
             'category_ids' => ['sometimes', 'array'],
             'category_ids.*' => ['integer', Rule::exists('categories', 'id')],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'reorder_point' => $this->normalizeNullableInteger('reorder_point'),
+            'reorder_quantity' => $this->normalizeNullableInteger('reorder_quantity'),
+        ]);
+    }
+
+    private function normalizeNullableInteger(string $key): mixed
+    {
+        $value = $this->input($key);
+
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_numeric($value)) {
+            return (int) $value;
+        }
+
+        return $value;
     }
 }

@@ -77,10 +77,31 @@ class DashboardController extends Controller
                     ->values()
                     ->all();
 
-                $lowStockThreshold = (int) config('store.inventory.low_stock_threshold', 10);
-                $lowStockCount = Product::query()
-                    ->where('stock', '<=', $lowStockThreshold)
-                    ->count();
+                $defaultReorderPoint = (int) config('store.inventory.low_stock_threshold', 10);
+
+                $lowStockQuery = Product::query()->belowReorderPoint($defaultReorderPoint);
+                $lowStockCount = (clone $lowStockQuery)->count();
+
+                $lowStockProducts = (clone $lowStockQuery)
+                    ->select(['id', 'name', 'stock', 'reorder_point', 'reorder_quantity'])
+                    ->orderBy('stock')
+                    ->orderBy('name')
+                    ->limit(5)
+                    ->get()
+                    ->map(static function (Product $product) use ($defaultReorderPoint) {
+                        return [
+                            'id' => $product->id,
+                            'name' => $product->name,
+                            'stock' => $product->stock,
+                            'reorderPoint' => $product->reorder_point,
+                            'effectiveReorderPoint' => $product->effectiveReorderPoint($defaultReorderPoint),
+                            'reorderQuantity' => $product->reorder_quantity,
+                        ];
+                    })
+                    ->values()
+                    ->all();
+
+                $customReorderCount = Product::query()->whereNotNull('reorder_point')->count();
 
                 return [
                     'totals' => [
@@ -92,7 +113,9 @@ class DashboardController extends Controller
                     ],
                     'dailySales' => $dailySales,
                     'topSelling' => $topSelling,
-                    'lowStockThreshold' => $lowStockThreshold,
+                    'lowStockThreshold' => $defaultReorderPoint,
+                    'customReorderCount' => $customReorderCount,
+                    'lowStockProducts' => $lowStockProducts,
                     'currency' => config('app.currency', 'IDR'),
                     'lastUpdated' => CarbonImmutable::now()->toIso8601String(),
                     'range' => [

@@ -31,6 +31,15 @@ interface DashboardMetrics {
     dailySales: DailySalesSnapshot[];
     topSelling: TopSellingItem[];
     lowStockThreshold: number;
+    customReorderCount: number;
+    lowStockProducts: {
+        id: number;
+        name: string;
+        stock: number;
+        reorderPoint: number | null;
+        effectiveReorderPoint: number;
+        reorderQuantity: number | null;
+    }[];
     currency: string;
     lastUpdated: string;
     range: {
@@ -166,7 +175,7 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
                             <div>
                                 <CardTitle className="text-sm font-medium">Produk Hampir Habis</CardTitle>
                                 <CardDescription>
-                                    Stok &le; {formatNumber(metrics.lowStockThreshold)}
+                                    Ambang default &le; {formatNumber(metrics.lowStockThreshold)} unit
                                 </CardDescription>
                             </div>
                             <div className="rounded-full bg-destructive/10 p-2 text-destructive">
@@ -178,6 +187,40 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
                                 {formatNumber(metrics.totals.lowStockCount)}
                             </p>
                             <p className="mt-1 text-xs text-muted-foreground">Periksa persediaan secara berkala</p>
+                            {metrics.customReorderCount > 0 && (
+                                <Badge variant="secondary" className="mt-3 w-fit">
+                                    {formatNumber(metrics.customReorderCount)} ambang khusus
+                                </Badge>
+                            )}
+                            <div className="mt-3 space-y-2">
+                                {metrics.lowStockProducts.length > 0 ? (
+                                    metrics.lowStockProducts.map((product) => (
+                                        <div
+                                            key={product.id}
+                                            className="flex items-center justify-between gap-2 text-xs text-muted-foreground"
+                                        >
+                                            <span className="flex-1 truncate text-foreground">
+                                                {product.name}
+                                            </span>
+                                            <div className="text-right">
+                                                <span className="font-medium text-foreground">
+                                                    {formatNumber(product.stock)} /{' '}
+                                                    {formatNumber(product.effectiveReorderPoint)}
+                                                </span>
+                                                {product.reorderQuantity !== null && (
+                                                    <div className="text-[0.65rem] uppercase tracking-wide">
+                                                        Reorder {formatNumber(product.reorderQuantity)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p className="text-xs text-muted-foreground">
+                                        Semua produk berada di atas ambang persediaan.
+                                    </p>
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
                 </section>
@@ -341,7 +384,7 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
                         <CardHeader>
                             <CardTitle>Persediaan</CardTitle>
                             <CardDescription>
-                                Produk dengan stok &le; {formatNumber(metrics.lowStockThreshold)} unit
+                                Produk yang berada di bawah ambang pemesanan ulang
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -349,7 +392,16 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
                                 <span className="text-4xl font-semibold">
                                     {formatNumber(metrics.totals.lowStockCount)}
                                 </span>
-                                <Badge variant="secondary">Batas stok {formatNumber(metrics.lowStockThreshold)}</Badge>
+                                <div className="flex flex-wrap items-center gap-2 text-xs">
+                                    <Badge variant="secondary">
+                                        Default {formatNumber(metrics.lowStockThreshold)}
+                                    </Badge>
+                                    {metrics.customReorderCount > 0 && (
+                                        <Badge variant="outline">
+                                            {formatNumber(metrics.customReorderCount)} ambang kustom
+                                        </Badge>
+                                    )}
+                                </div>
                             </div>
                             <p className="text-sm text-muted-foreground">
                                 Pantau dan lakukan pemesanan ulang untuk mencegah kehabisan stok saat permintaan tinggi.

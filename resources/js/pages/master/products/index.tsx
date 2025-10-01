@@ -18,7 +18,15 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { ChangeEvent, FormEvent, useMemo, useState } from 'react';
-import { Download, Edit, Image as ImageIcon, PlusCircle, Trash2, Upload } from 'lucide-react';
+import {
+    AlertTriangle,
+    Download,
+    Edit,
+    Image as ImageIcon,
+    PlusCircle,
+    Trash2,
+    Upload,
+} from 'lucide-react';
 
 interface CategorySummary {
     id: number;
@@ -33,6 +41,10 @@ interface ProductSummary {
     price: string | number;
     image_path: string | null;
     image_url: string | null;
+    reorder_point: number | null;
+    reorder_quantity: number | null;
+    effective_reorder_point: number;
+    is_low_stock: boolean;
     created_at?: string | null;
     updated_at?: string | null;
     categories: CategorySummary[];
@@ -41,6 +53,7 @@ interface ProductSummary {
 interface ProductsPageProps {
     products: ProductSummary[];
     availableCategories: CategorySummary[];
+    defaultReorderPoint: number;
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -92,6 +105,7 @@ const updateCategorySelection = (
 export default function ProductsIndex({
     products,
     availableCategories,
+    defaultReorderPoint,
 }: ProductsPageProps) {
     const { flash } = usePage<SharedData>().props;
     const [isEditOpen, setIsEditOpen] = useState(false);
@@ -103,6 +117,8 @@ export default function ProductsIndex({
         name: string;
         stock: string;
         price: string;
+        reorder_point: string;
+        reorder_quantity: string;
         image: File | null;
         category_ids: number[];
     }>({
@@ -110,6 +126,8 @@ export default function ProductsIndex({
         name: '',
         stock: '0',
         price: '0.00',
+        reorder_point: '',
+        reorder_quantity: '',
         image: null,
         category_ids: [],
     });
@@ -119,6 +137,8 @@ export default function ProductsIndex({
         name: string;
         stock: string;
         price: string;
+        reorder_point: string;
+        reorder_quantity: string;
         image: File | null;
         remove_image: boolean;
         category_ids: number[];
@@ -127,6 +147,8 @@ export default function ProductsIndex({
         name: '',
         stock: '0',
         price: '0.00',
+        reorder_point: '',
+        reorder_quantity: '',
         image: null,
         remove_image: false,
         category_ids: [],
@@ -151,6 +173,14 @@ export default function ProductsIndex({
                 name: product.name,
                 stock: product.stock.toString(),
                 price: product.price.toString(),
+                reorder_point:
+                    product.reorder_point !== null
+                        ? product.reorder_point.toString()
+                        : '',
+                reorder_quantity:
+                    product.reorder_quantity !== null
+                        ? product.reorder_quantity.toString()
+                        : '',
                 image: null,
                 remove_image: false,
                 category_ids: product.categories.map((category) => category.id),
@@ -183,6 +213,8 @@ export default function ProductsIndex({
                 createForm.reset();
                 createForm.setData('stock', '0');
                 createForm.setData('price', '0.00');
+                createForm.setData('reorder_point', '');
+                createForm.setData('reorder_quantity', '');
             },
         });
     };
@@ -355,7 +387,53 @@ export default function ProductsIndex({
                                                 createForm.setData('price', event.target.value)
                                             }
                                         />
-                                        <InputError message={createForm.errors.price} />
+                                            <InputError message={createForm.errors.price} />
+                                    </div>
+                                </div>
+
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="product-reorder-point">Reorder point</Label>
+                                        <Input
+                                            id="product-reorder-point"
+                                            name="reorder_point"
+                                            type="number"
+                                            min={0}
+                                            value={createForm.data.reorder_point}
+                                            placeholder={`Default: ${defaultReorderPoint.toLocaleString()}`}
+                                            onChange={(event) =>
+                                                createForm.setData(
+                                                    'reorder_point',
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            Leave blank to inherit the store default threshold.
+                                        </p>
+                                        <InputError message={createForm.errors.reorder_point} />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="product-reorder-quantity">Reorder quantity</Label>
+                                        <Input
+                                            id="product-reorder-quantity"
+                                            name="reorder_quantity"
+                                            type="number"
+                                            min={0}
+                                            value={createForm.data.reorder_quantity}
+                                            placeholder="e.g. 25"
+                                            onChange={(event) =>
+                                                createForm.setData(
+                                                    'reorder_quantity',
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            Suggest how many units to purchase when restocking.
+                                        </p>
+                                        <InputError message={createForm.errors.reorder_quantity} />
                                     </div>
                                 </div>
 
@@ -413,7 +491,7 @@ export default function ProductsIndex({
                                     <h2 className="text-lg font-semibold">Import / Export</h2>
                                 </div>
                                 <p className="text-sm text-muted-foreground">
-                                    Use spreadsheet files with headers <Badge variant="secondary">barcode</Badge>, <Badge variant="secondary">name</Badge>, <Badge variant="secondary">stock</Badge>, <Badge variant="secondary">price</Badge>, optional <Badge variant="secondary">image_path</Badge> and optional <Badge variant="secondary">categories</Badge> (comma, semicolon or pipe separated) to bulk manage products.
+                                    Use spreadsheet files with headers <Badge variant="secondary">barcode</Badge>, <Badge variant="secondary">name</Badge>, <Badge variant="secondary">stock</Badge>, <Badge variant="secondary">price</Badge>, optional <Badge variant="secondary">reorder_point</Badge>, optional <Badge variant="secondary">reorder_quantity</Badge>, optional <Badge variant="secondary">image_path</Badge> and optional <Badge variant="secondary">categories</Badge> (comma, semicolon or pipe separated) to bulk manage products.
                                 </p>
                             </header>
 
@@ -479,6 +557,7 @@ export default function ProductsIndex({
                                         <th className="px-3 py-2">Barcode</th>
                                         <th className="px-3 py-2">Name</th>
                                         <th className="px-3 py-2 text-right">Stock</th>
+                                        <th className="px-3 py-2 text-right">Reorder</th>
                                         <th className="px-3 py-2 text-right">Price</th>
                                         <th className="px-3 py-2">Categories</th>
                                         <th className="px-3 py-2">Image</th>
@@ -489,7 +568,7 @@ export default function ProductsIndex({
                                     {products.length === 0 ? (
                                         <tr>
                                             <td
-                                                colSpan={7}
+                                                colSpan={8}
                                                 className="px-3 py-6 text-center text-sm text-muted-foreground"
                                             >
                                                 No products yet. Use the form on the left to add your first item or import from a spreadsheet.
@@ -499,11 +578,70 @@ export default function ProductsIndex({
                                         products.map((product) => (
                                             <tr
                                                 key={product.id}
-                                                className="border-b border-muted/50 last:border-b-0"
+                                                className={`border-b border-muted/50 last:border-b-0 ${
+                                                    product.is_low_stock ? 'bg-destructive/5' : ''
+                                                }`}
                                             >
                                                 <td className="px-3 py-3 font-medium">{product.barcode}</td>
-                                                <td className="px-3 py-3">{product.name}</td>
-                                                <td className="px-3 py-3 text-right">{product.stock.toLocaleString()}</td>
+                                                <td className="px-3 py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        {product.is_low_stock && (
+                                                            <span
+                                                                className="inline-flex items-center text-destructive"
+                                                                title="Low stock"
+                                                            >
+                                                                <AlertTriangle
+                                                                    className="h-4 w-4"
+                                                                    aria-hidden="true"
+                                                                />
+                                                            </span>
+                                                        )}
+                                                        <span>{product.name}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-3 py-3 text-right">
+                                                    <div className="flex flex-col items-end gap-1">
+                                                        <span
+                                                            className={`font-medium ${
+                                                                product.is_low_stock
+                                                                    ? 'text-destructive'
+                                                                    : ''
+                                                            }`}
+                                                        >
+                                                            {product.stock.toLocaleString()}
+                                                        </span>
+                                                        {product.is_low_stock && (
+                                                            <Badge
+                                                                variant="destructive"
+                                                                className="text-[0.65rem] uppercase tracking-wide"
+                                                            >
+                                                                Restock
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-3 py-3 text-right">
+                                                    <div className="flex flex-col items-end gap-1">
+                                                        <span className="font-medium">
+                                                            {product.effective_reorder_point.toLocaleString()}
+                                                        </span>
+                                                        <div className="flex flex-wrap justify-end gap-1 text-xs text-muted-foreground">
+                                                            <Badge variant="outline">
+                                                                {product.reorder_point === null
+                                                                    ? 'Default threshold'
+                                                                    : 'Custom threshold'}
+                                                            </Badge>
+                                                            <span>
+                                                                Qty:{' '}
+                                                                <span className="font-medium text-foreground">
+                                                                    {product.reorder_quantity !== null
+                                                                        ? product.reorder_quantity.toLocaleString()
+                                                                        : '—'}
+                                                                </span>
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </td>
                                                 <td className="px-3 py-3 text-right">{formatPrice(product.price)}</td>
                                                 <td className="px-3 py-3">
                                                     {product.categories.length > 0 ? (
@@ -634,6 +772,52 @@ export default function ProductsIndex({
                                                                                 }
                                                                             />
                                                                             <InputError message={editForm.errors.price} />
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="grid gap-4 sm:grid-cols-2">
+                                                                        <div className="space-y-2">
+                                                                            <Label htmlFor="edit-reorder-point">Reorder point</Label>
+                                                                            <Input
+                                                                                id="edit-reorder-point"
+                                                                                name="reorder_point"
+                                                                                type="number"
+                                                                                min={0}
+                                                                                value={editForm.data.reorder_point}
+                                                                                placeholder={`Default: ${defaultReorderPoint.toLocaleString()}`}
+                                                                                onChange={(event) =>
+                                                                                    editForm.setData(
+                                                                                        'reorder_point',
+                                                                                        event.target.value,
+                                                                                    )
+                                                                                }
+                                                                            />
+                                                                            <p className="text-xs text-muted-foreground">
+                                                                                Leave blank to use the store default threshold.
+                                                                            </p>
+                                                                            <InputError message={editForm.errors.reorder_point} />
+                                                                        </div>
+
+                                                                        <div className="space-y-2">
+                                                                            <Label htmlFor="edit-reorder-quantity">Reorder quantity</Label>
+                                                                            <Input
+                                                                                id="edit-reorder-quantity"
+                                                                                name="reorder_quantity"
+                                                                                type="number"
+                                                                                min={0}
+                                                                                value={editForm.data.reorder_quantity}
+                                                                                placeholder="e.g. 25"
+                                                                                onChange={(event) =>
+                                                                                    editForm.setData(
+                                                                                        'reorder_quantity',
+                                                                                        event.target.value,
+                                                                                    )
+                                                                                }
+                                                                            />
+                                                                            <p className="text-xs text-muted-foreground">
+                                                                                Suggest how many units to order when replenishing.
+                                                                            </p>
+                                                                            <InputError message={editForm.errors.reorder_quantity} />
                                                                         </div>
                                                                     </div>
 
