@@ -133,6 +133,8 @@ export default function EmployeeTransactions({
         amount_paid: 0,
         notes: '',
     });
+    const { setData } = form;
+    const lastCustomerIdRef = useRef<number | null>(form.data.customer_id ?? null);
 
     const totals = useMemo(() => {
         const subtotal = items.reduce(
@@ -353,8 +355,15 @@ export default function EmployeeTransactions({
     }, [scannerEnabled]);
 
     useEffect(() => {
-        form.setData('customer_id', selectedCustomer ? selectedCustomer.id : null);
-    }, [selectedCustomer, form]);
+        const nextCustomerId = selectedCustomer ? selectedCustomer.id : null;
+
+        if (lastCustomerIdRef.current === nextCustomerId) {
+            return;
+        }
+
+        lastCustomerIdRef.current = nextCustomerId;
+        setData('customer_id', nextCustomerId);
+    }, [selectedCustomer, setData]);
 
     const cleanupScanner = () => {
         readerRef.current?.reset();
