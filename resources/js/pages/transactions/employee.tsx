@@ -75,6 +75,7 @@ export default function EmployeeTransactions({
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const readerRef = useRef<BrowserMultiFormatReader | null>(null);
     const processedBarcodesRef = useRef<Set<string>>(new Set());
+    const lastPrintedTransactionIdRef = useRef<number | null>(null);
 
     const [discountType, setDiscountType] = useState<DiscountType | null>(null);
     const [discountValueInput, setDiscountValueInput] = useState('');
@@ -147,6 +148,41 @@ export default function EmployeeTransactions({
         recentTransactionId != null
             ? buildUrl(customerBaseUrl, '__ID__', recentTransactionId)
             : null;
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        if (recentTransactionId == null || !customerUrl) {
+            return;
+        }
+
+        if (lastPrintedTransactionIdRef.current === recentTransactionId) {
+            return;
+        }
+
+        lastPrintedTransactionIdRef.current = recentTransactionId;
+
+        let urlToOpen = customerUrl;
+
+        try {
+            const parsedUrl = new URL(customerUrl, window.location.origin);
+            parsedUrl.searchParams.set('print', '1');
+            urlToOpen = parsedUrl.toString();
+        } catch {
+            urlToOpen = `${customerUrl}${customerUrl.includes('?') ? '&' : '?'}print=1`;
+        }
+
+        const receiptWindow = window.open(urlToOpen, '_blank', 'noopener,noreferrer');
+
+        if (!receiptWindow) {
+            console.warn('Receipt window could not be opened. Please allow pop-ups to auto-print receipts.');
+            return;
+        }
+
+        receiptWindow.focus();
+    }, [recentTransactionId, customerUrl]);
 
     useEffect(() => {
         if (!scannerEnabled) {

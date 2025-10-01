@@ -2,7 +2,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import CustomerLayout from '@/layouts/customer-layout';
 import { Head, router } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { RefreshCcw } from 'lucide-react';
 
 interface TransactionItemSummary {
@@ -53,6 +53,39 @@ const formatDate = (value: string | null) => {
 };
 
 export default function CustomerDisplay({ transaction, autoRefresh, latestUrl }: CustomerDisplayProps) {
+    const [shouldAutoPrint, setShouldAutoPrint] = useState(false);
+    const hasPrintedRef = useRef(false);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('print') === '1') {
+            setShouldAutoPrint(true);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        if (!shouldAutoPrint || !transaction || hasPrintedRef.current) {
+            return;
+        }
+
+        hasPrintedRef.current = true;
+        window.print();
+
+        if (window.history && window.history.replaceState) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('print');
+            window.history.replaceState({}, document.title, url.toString());
+        }
+    }, [shouldAutoPrint, transaction]);
+
     useEffect(() => {
         if (!autoRefresh) {
             return;
