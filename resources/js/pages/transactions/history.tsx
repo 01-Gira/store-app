@@ -454,7 +454,6 @@ export default function TransactionHistory({
                                     if (link.url === null) {
                                         return (
                                             <span
-                                                // eslint-disable-next-line react/no-array-index-key
                                                 key={`${link.label}-${index}`}
                                                 className={`${classes} pointer-events-none opacity-50`}
                                                 dangerouslySetInnerHTML={{ __html: link.label }}
@@ -464,7 +463,6 @@ export default function TransactionHistory({
 
                                     return (
                                         <Link
-                                            // eslint-disable-next-line react/no-array-index-key
                                             key={`${link.label}-${index}`}
                                             href={link.url}
                                             className={classes}
