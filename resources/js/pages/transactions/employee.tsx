@@ -37,6 +37,10 @@ interface BrandingInfo {
     contact_details: string | null;
     receipt_footer_text: string | null;
     logo_url: string | null;
+    currency_code: string;
+    currency_symbol: string;
+    language_code: string;
+    timezone: string;
 }
 
 interface EmployeeTransactionsPageProps {
@@ -54,13 +58,6 @@ interface EmployeeTransactionsPageProps {
 interface CartItem extends TransactionProduct {
     quantity: number;
 }
-
-const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        minimumFractionDigits: 2,
-    }).format(value);
 
 const roundCurrency = (value: number) => Math.round(value * 100) / 100;
 
@@ -91,7 +88,20 @@ export default function EmployeeTransactions({
     customerStoreUrl,
     branding,
 }: EmployeeTransactionsPageProps) {
-    const { flash } = usePage<SharedData>().props;
+    const { flash, storeSettings } = usePage<SharedData>().props;
+    const locale = branding.language_code ?? storeSettings?.language_code ?? 'id-ID';
+    const currencyCode = branding.currency_code ?? storeSettings?.currency_code ?? 'IDR';
+    const currencyFormatter = useMemo(
+        () =>
+            new Intl.NumberFormat(locale, {
+                style: 'currency',
+                currency: currencyCode,
+                minimumFractionDigits: 2,
+            }),
+        [currencyCode, locale],
+    );
+    const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
+    const formatCurrency = (value: number) => currencyFormatter.format(value);
     const [items, setItems] = useState<CartItem[]>([]);
     const [manualBarcode, setManualBarcode] = useState('');
     const [scannerEnabled, setScannerEnabled] = useState(false);
@@ -1061,7 +1071,7 @@ export default function EmployeeTransactions({
                                                 )}
                                                 <div>
                                                     Points:{' '}
-                                                    {selectedCustomer.loyalty_points.toLocaleString('id-ID')}
+                                                    {numberFormatter.format(selectedCustomer.loyalty_points)}
                                                 </div>
                                             </div>
                                         </div>

@@ -26,6 +26,10 @@ class UpdateStoreSettingsRequest extends FormRequest
             'store_name' => ['required', 'string', 'max:255'],
             'contact_details' => ['nullable', 'string', 'max:1000'],
             'receipt_footer_text' => ['nullable', 'string', 'max:1000'],
+            'currency_code' => ['required', 'string', 'size:3'],
+            'currency_symbol' => ['required', 'string', 'max:10'],
+            'language_code' => ['required', 'string', 'max:20'],
+            'timezone' => ['required', 'string', 'timezone'],
             'logo' => ['nullable', 'image', 'max:2048'],
             'remove_logo' => ['sometimes', 'boolean'],
         ];

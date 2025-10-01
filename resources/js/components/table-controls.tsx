@@ -10,9 +10,11 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import type { TableFilterOption } from '@/hooks/use-table-controls';
-import { Search } from 'lucide-react';
 import type { TableRange } from '@/hooks/use-table-controls';
+import { type SharedData } from '@/types';
+import { Search } from 'lucide-react';
 import { useMemo } from 'react';
+import { usePage } from '@inertiajs/react';
 
 interface TableToolbarProps {
     searchTerm: string;
@@ -43,6 +45,9 @@ export function TableToolbar({
     filteredTotal,
     className,
 }: TableToolbarProps) {
+    const { storeSettings } = usePage<SharedData>().props;
+    const locale = storeSettings?.language_code ?? 'id-ID';
+    const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
     const showFilters = (filterOptions?.length ?? 0) > 0;
     const isFiltered = showFilters && filteredTotal !== total;
 
@@ -64,7 +69,7 @@ export function TableToolbar({
                 </div>
                 {isFiltered && (
                     <p className="text-xs text-muted-foreground">
-                        Menyaring {filteredTotal.toLocaleString('id-ID')} dari {total.toLocaleString('id-ID')} entri.
+                        Menyaring {numberFormatter.format(filteredTotal)} dari {numberFormatter.format(total)} entri.
                     </p>
                 )}
             </div>
@@ -130,20 +135,23 @@ export function TablePagination({
     filteredTotal,
     className,
 }: TablePaginationProps) {
+    const { storeSettings } = usePage<SharedData>().props;
+    const locale = storeSettings?.language_code ?? 'id-ID';
+    const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
     const summary = useMemo(() => {
         if (filteredTotal === 0) {
             return 'Tidak ada data untuk ditampilkan.';
         }
 
         const visibleRange = `${range.start}-${range.end}`;
-        const filteredText = `Menampilkan ${visibleRange} dari ${filteredTotal.toLocaleString('id-ID')} entri`;
+        const filteredText = `Menampilkan ${visibleRange} dari ${numberFormatter.format(filteredTotal)} entri`;
 
         if (filteredTotal === total) {
             return filteredText;
         }
 
-        return `${filteredText} (difilter dari ${total.toLocaleString('id-ID')} entri)`;
-    }, [filteredTotal, range.end, range.start, total]);
+        return `${filteredText} (difilter dari ${numberFormatter.format(total)} entri)`;
+    }, [filteredTotal, numberFormatter, range.end, range.start, total]);
 
     return (
         <div className={cn('flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between', className)}>

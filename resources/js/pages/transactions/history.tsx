@@ -83,6 +83,17 @@ interface DailyBreakdownPoint {
     items: number;
 }
 
+interface BrandingInfo {
+    store_name: string | null;
+    contact_details: string | null;
+    receipt_footer_text: string | null;
+    logo_url: string | null;
+    currency_code: string;
+    currency_symbol: string;
+    language_code: string;
+    timezone: string;
+}
+
 interface TransactionHistoryPageProps {
     filters: HistoryFilters;
     transactions: PaginatedResponse<TransactionRow>;
@@ -92,25 +103,8 @@ interface TransactionHistoryPageProps {
     customers: CustomerOption[];
     historyUrl: string;
     employeeUrl: string;
+    branding: BrandingInfo;
 }
-
-const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        minimumFractionDigits: 2,
-    }).format(value);
-
-const formatDateTime = (value: string | null) => {
-    if (!value) {
-        return '—';
-    }
-
-    return new Intl.DateTimeFormat('id-ID', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    }).format(new Date(value));
-};
 
 export default function TransactionHistory({
     filters,
@@ -121,7 +115,46 @@ export default function TransactionHistory({
     customers,
     historyUrl,
     employeeUrl,
+    branding,
 }: TransactionHistoryPageProps) {
+    const locale = branding.language_code ?? 'id-ID';
+    const currencyCode = branding.currency_code ?? 'IDR';
+    const timezone = branding.timezone ?? 'Asia/Jakarta';
+    const currencyFormatter = useMemo(
+        () =>
+            new Intl.NumberFormat(locale, {
+                style: 'currency',
+                currency: currencyCode,
+                minimumFractionDigits: 2,
+            }),
+        [currencyCode, locale],
+    );
+    const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
+    const dateTimeFormatter = useMemo(
+        () =>
+            new Intl.DateTimeFormat(locale, {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+                timeZone: timezone,
+            }),
+        [locale, timezone],
+    );
+    const dateFormatter = useMemo(
+        () =>
+            new Intl.DateTimeFormat(locale, {
+                dateStyle: 'medium',
+                timeZone: timezone,
+            }),
+        [locale, timezone],
+    );
+    const formatCurrency = (value: number) => currencyFormatter.format(value);
+    const formatDateTime = (value: string | null) => {
+        if (!value) {
+            return '—';
+        }
+
+        return dateTimeFormatter.format(new Date(value));
+    };
     const form = useForm({
         start_date: filters.start_date ?? '',
         end_date: filters.end_date ?? '',
@@ -409,7 +442,7 @@ export default function TransactionHistory({
                                         Total transaksi
                                     </dt>
                                     <dd className="text-2xl font-semibold text-foreground">
-                                        {summary.transactions.toLocaleString('id-ID')}
+                                        {numberFormatter.format(summary.transactions)}
                                     </dd>
                                 </div>
                                 <div className="rounded-lg border border-border p-4">
@@ -417,7 +450,7 @@ export default function TransactionHistory({
                                         Barang terjual
                                     </dt>
                                     <dd className="text-2xl font-semibold text-foreground">
-                                        {summary.items.toLocaleString('id-ID')}
+                                        {numberFormatter.format(summary.items)}
                                     </dd>
                                 </div>
                                 <div className="rounded-lg border border-border p-4">
@@ -515,7 +548,7 @@ export default function TransactionHistory({
                                                     {formatDateTime(transaction.created_at)}
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
-                                                    {transaction.items_count.toLocaleString('id-ID')}
+                                                    {numberFormatter.format(transaction.items_count)}
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
                                                     {formatCurrency(transaction.subtotal)}
@@ -591,13 +624,11 @@ export default function TransactionHistory({
                                     >
                                         <div>
                                             <p className="font-medium text-foreground">
-                                                {new Intl.DateTimeFormat('id-ID', {
-                                                    dateStyle: 'medium',
-                                                }).format(new Date(entry.date))}
+                                                {dateFormatter.format(new Date(entry.date))}
                                             </p>
                                             <p className="text-xs text-muted-foreground">
-                                                {entry.transactions.toLocaleString('id-ID')} transaksi ·{' '}
-                                                {entry.items.toLocaleString('id-ID')} item
+                                                {numberFormatter.format(entry.transactions)} transaksi ·{' '}
+                                                {numberFormatter.format(entry.items)} item
                                             </p>
                                         </div>
                                         <div className="text-base font-semibold text-foreground">

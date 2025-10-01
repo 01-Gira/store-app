@@ -20,6 +20,10 @@ class StoreSetting extends Model
         'contact_details',
         'logo_path',
         'receipt_footer_text',
+        'currency_code',
+        'currency_symbol',
+        'language_code',
+        'timezone',
     ];
 
     /**
@@ -39,6 +43,10 @@ class StoreSetting extends Model
             'contact_details' => null,
             'logo_path' => null,
             'receipt_footer_text' => null,
+            'currency_code' => 'IDR',
+            'currency_symbol' => 'Rp',
+            'language_code' => 'id-ID',
+            'timezone' => 'Asia/Jakarta',
         ]);
     }
 }

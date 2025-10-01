@@ -23,6 +23,10 @@ class StoreSettingsController extends Controller
                 'store_name' => $settings->store_name ?? '',
                 'contact_details' => $settings->contact_details,
                 'receipt_footer_text' => $settings->receipt_footer_text,
+                'currency_code' => $settings->currency_code,
+                'currency_symbol' => $settings->currency_symbol,
+                'language_code' => $settings->language_code,
+                'timezone' => $settings->timezone,
                 'logo_url' => $settings->logo_path
                     ? Storage::disk('public')->url($settings->logo_path)
                     : null,
@@ -41,12 +45,20 @@ class StoreSettingsController extends Controller
         $receiptFooter = $request->filled('receipt_footer_text')
             ? (string) $request->input('receipt_footer_text')
             : null;
+        $currencyCode = $request->string('currency_code')->trim()->upper()->toString();
+        $currencySymbol = $request->string('currency_symbol')->trim()->toString();
+        $languageCode = $request->string('language_code')->trim()->toString();
+        $timezone = $request->string('timezone')->trim()->toString();
 
         $payload = [
             'ppn_rate' => $request->float('ppn_rate'),
             'store_name' => $storeName,
             'contact_details' => $contactDetails,
             'receipt_footer_text' => $receiptFooter,
+            'currency_code' => $currencyCode,
+            'currency_symbol' => $currencySymbol,
+            'language_code' => $languageCode,
+            'timezone' => $timezone,
         ];
 
         if ($request->boolean('remove_logo') && $settings->logo_path) {

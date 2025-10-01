@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Product;
 use App\Models\PurchaseOrder;
+use App\Models\StoreSetting;
 use App\Models\Transaction;
 use App\Models\TransactionItem;
 use Carbon\CarbonImmutable;
@@ -14,6 +15,7 @@ class DashboardMetricsService
     {
         $end = CarbonImmutable::now()->endOfDay();
         $start = $end->subDays(max(1, $days) - 1)->startOfDay();
+        $settings = StoreSetting::current();
 
         $aggregate = Transaction::query()
             ->withinPeriod($start, $end)
@@ -176,7 +178,10 @@ class DashboardMetricsService
                 'projectedProfit30' => round($averageDailyProfit * 30, 2),
                 'projectedTax30' => round($averageDailyTax * 30, 2),
             ],
-            'currency' => config('app.currency', 'IDR'),
+            'currency' => $settings->currency_code,
+            'currency_symbol' => $settings->currency_symbol,
+            'locale' => $settings->language_code,
+            'timezone' => $settings->timezone,
             'lastUpdated' => CarbonImmutable::now()->toIso8601String(),
             'range' => [
                 'start' => $start->toDateString(),
