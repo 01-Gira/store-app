@@ -35,6 +35,7 @@ class StoreTransactionRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->merge([
+            'customer_id' => $this->filled('customer_id') ? $this->input('customer_id') : null,
             'discount_type' => $this->filled('discount_type') ? $this->input('discount_type') : null,
             'discount_value' => $this->filled('discount_value') ? $this->input('discount_value') : null,
             'notes' => $this->filled('notes') ? $this->input('notes') : null,
@@ -52,6 +53,7 @@ class StoreTransactionRequest extends FormRequest
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'discount_type' => ['nullable', 'string', Rule::in(['percentage', 'value'])],
             'discount_value' => ['nullable', 'numeric', 'min:0'],
             'payment_method' => ['required', 'string', Rule::in(self::PAYMENT_METHODS)],

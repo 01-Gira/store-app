@@ -120,8 +120,19 @@ test('products export includes category names', function () {
     $row = $export->map($product->load('categories'));
 
     expect($export->headings())
-        ->toBe(['id', 'barcode', 'name', 'stock', 'price', 'image_path', 'categories']);
-    expect($row[6])
+        ->toBe([
+            'id',
+            'barcode',
+            'name',
+            'stock',
+            'price',
+            'cost_price',
+            'reorder_point',
+            'reorder_quantity',
+            'image_path',
+            'categories',
+        ]);
+    expect($row[9])
         ->toBe(
             $categories
                 ->pluck('name')

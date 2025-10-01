@@ -25,6 +25,16 @@ interface TransactionSummary {
     total: number;
     items_count: number;
     user: { id: number; name: string } | null;
+    customer:
+        | {
+              id: number;
+              name: string;
+              email: string | null;
+              phone: string | null;
+              loyalty_number: string | null;
+              loyalty_points: number;
+          }
+        | null;
     items: TransactionItemSummary[];
 }
 
@@ -139,6 +149,17 @@ export default function CustomerDisplay({ transaction, autoRefresh, latestUrl }:
                                 </div>
                                 <div>Waktu: {formatDate(transaction.created_at)}</div>
                                 {transaction.user && <div>Kasir: {transaction.user.name}</div>}
+                                {transaction.customer && (
+                                    <div>
+                                        Pelanggan: {transaction.customer.name}
+                                        {transaction.customer.loyalty_number && (
+                                            <>
+                                                {' '}
+                                                · ID Loyalti {transaction.customer.loyalty_number}
+                                            </>
+                                        )}
+                                    </div>
+                                )}
                             </>
                         ) : (
                             <div>Belum ada transaksi yang diselesaikan.</div>
@@ -195,6 +216,50 @@ export default function CustomerDisplay({ transaction, autoRefresh, latestUrl }:
                                 <span>{formatCurrency(transaction.total)}</span>
                             </div>
                         </div>
+
+                        {transaction.customer && (
+                            <div className="rounded-xl border border-border bg-background p-6 text-lg">
+                                <h3 className="text-2xl font-semibold">Informasi pelanggan</h3>
+                                <dl className="mt-4 space-y-2 text-base">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <dt className="text-muted-foreground">Nama</dt>
+                                        <dd className="font-medium text-foreground">
+                                            {transaction.customer.name}
+                                        </dd>
+                                    </div>
+                                    {transaction.customer.email && (
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <dt className="text-muted-foreground">Email</dt>
+                                            <dd className="font-medium text-foreground">
+                                                {transaction.customer.email}
+                                            </dd>
+                                        </div>
+                                    )}
+                                    {transaction.customer.phone && (
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <dt className="text-muted-foreground">Telepon</dt>
+                                            <dd className="font-medium text-foreground">
+                                                {transaction.customer.phone}
+                                            </dd>
+                                        </div>
+                                    )}
+                                    {transaction.customer.loyalty_number && (
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <dt className="text-muted-foreground">ID Loyalti</dt>
+                                            <dd className="font-medium text-foreground">
+                                                {transaction.customer.loyalty_number}
+                                            </dd>
+                                        </div>
+                                    )}
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <dt className="text-muted-foreground">Poin</dt>
+                                        <dd className="font-medium text-foreground">
+                                            {transaction.customer.loyalty_points.toLocaleString('id-ID')}
+                                        </dd>
+                                    </div>
+                                </dl>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div className="rounded-xl border border-dashed border-border bg-background/60 p-12 text-center">

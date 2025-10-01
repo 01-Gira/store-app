@@ -18,6 +18,11 @@ interface CashierOption {
     name: string;
 }
 
+interface CustomerOption {
+    id: number;
+    name: string;
+}
+
 interface TransactionRow {
     id: number;
     number: string;
@@ -27,6 +32,14 @@ interface TransactionRow {
     total: number;
     items_count: number;
     cashier: { id: number; name: string } | null;
+    customer: {
+        id: number;
+        name: string;
+        email: string | null;
+        phone: string | null;
+        loyalty_number: string | null;
+        loyalty_points: number;
+    } | null;
     detail_url: string;
 }
 
@@ -48,6 +61,7 @@ interface HistoryFilters {
     start_date: string | null;
     end_date: string | null;
     cashier_id: number | null;
+    customer_id: number | null;
     min_total: number | null;
     max_total: number | null;
 }
@@ -73,6 +87,7 @@ interface TransactionHistoryPageProps {
     summary: HistorySummary;
     daily: DailyBreakdownPoint[];
     cashiers: CashierOption[];
+    customers: CustomerOption[];
     historyUrl: string;
     employeeUrl: string;
 }
@@ -101,6 +116,7 @@ export default function TransactionHistory({
     summary,
     daily,
     cashiers,
+    customers,
     historyUrl,
     employeeUrl,
 }: TransactionHistoryPageProps) {
@@ -108,6 +124,7 @@ export default function TransactionHistory({
         start_date: filters.start_date ?? '',
         end_date: filters.end_date ?? '',
         cashier_id: filters.cashier_id ? String(filters.cashier_id) : '',
+        customer_id: filters.customer_id ? String(filters.customer_id) : '',
         min_total: filters.min_total != null ? String(filters.min_total) : '',
         max_total: filters.max_total != null ? String(filters.max_total) : '',
     });
@@ -130,6 +147,13 @@ export default function TransactionHistory({
                             cashier.id === Number(form.data.cashier_id),
                         )?.name ?? 'Tidak diketahui',
                 },
+                form.data.customer_id && {
+                    label: 'Pelanggan',
+                    value:
+                        customers.find((customer) =>
+                            customer.id === Number(form.data.customer_id),
+                        )?.name ?? 'Tidak diketahui',
+                },
                 form.data.min_total && {
                     label: 'Total minimum',
                     value: formatCurrency(Number(form.data.min_total)),
@@ -141,7 +165,9 @@ export default function TransactionHistory({
             ].filter(Boolean) as { label: string; value: string }[],
         [
             cashiers,
+            customers,
             form.data.cashier_id,
+            form.data.customer_id,
             form.data.end_date,
             form.data.max_total,
             form.data.min_total,
@@ -162,6 +188,7 @@ export default function TransactionHistory({
             start_date: '',
             end_date: '',
             cashier_id: '',
+            customer_id: '',
             min_total: '',
             max_total: '',
         });
@@ -246,6 +273,33 @@ export default function TransactionHistory({
                                                     value={String(cashier.id)}
                                                 >
                                                     {cashier.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Pelanggan</Label>
+                                    <Select
+                                        value={form.data.customer_id || 'all'}
+                                        onValueChange={(value) =>
+                                            form.setData(
+                                                'customer_id',
+                                                value === 'all' ? '' : value,
+                                            )
+                                        }
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Semua pelanggan" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Semua pelanggan</SelectItem>
+                                            {customers.map((customer) => (
+                                                <SelectItem
+                                                    key={customer.id}
+                                                    value={String(customer.id)}
+                                                >
+                                                    {customer.name}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
@@ -390,6 +444,7 @@ export default function TransactionHistory({
                                         <th className="px-4 py-3 font-medium text-right">Pajak</th>
                                         <th className="px-4 py-3 font-medium text-right">Total</th>
                                         <th className="px-4 py-3 font-medium">Kasir</th>
+                                        <th className="px-4 py-3 font-medium">Pelanggan</th>
                                         <th className="px-4 py-3 font-medium text-right">Aksi</th>
                                     </tr>
                                 </thead>
@@ -418,6 +473,26 @@ export default function TransactionHistory({
                                                 <td className="px-4 py-3">
                                                     {transaction.cashier?.name ?? '—'}
                                                 </td>
+                                                <td className="px-4 py-3">
+                                                    {transaction.customer ? (
+                                                        <div className="space-y-0.5">
+                                                            <div className="font-medium text-foreground">
+                                                                {transaction.customer.name}
+                                                            </div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                {[
+                                                                    transaction.customer.email,
+                                                                    transaction.customer.phone,
+                                                                    transaction.customer.loyalty_number,
+                                                                ]
+                                                                    .filter(Boolean)
+                                                                    .join(' • ')}
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        '—'
+                                                    )}
+                                                </td>
                                                 <td className="px-4 py-3 text-right">
                                                     <Button asChild variant="outline" size="sm">
                                                         <Link href={transaction.detail_url}>
@@ -430,7 +505,7 @@ export default function TransactionHistory({
                                     ) : (
                                         <tr>
                                             <td
-                                                colSpan={8}
+                                                colSpan={9}
                                                 className="px-4 py-6 text-center text-muted-foreground"
                                             >
                                                 Tidak ada transaksi yang cocok dengan filter saat ini.

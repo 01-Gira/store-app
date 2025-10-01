@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Transactions;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Transactions\StoreTransactionRequest;
+use App\Models\Customer;
 use App\Models\Product;
 use App\Models\StoreSetting;
 use App\Models\Transaction;
@@ -33,6 +34,8 @@ class TransactionController extends Controller
             'recentTransactionId' => session('recentTransactionId'),
             'customerBaseUrl' => route('transactions.customer', ['transaction' => '__ID__']),
             'customerLatestUrl' => route('transactions.customer.latest'),
+            'customerSearchUrl' => route('transactions.customers.index'),
+            'customerStoreUrl' => route('transactions.customers.store'),
         ]);
     }
 
@@ -42,10 +45,12 @@ class TransactionController extends Controller
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
             'cashier_id' => ['nullable', 'integer', 'exists:users,id'],
+            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'min_total' => ['nullable', 'numeric', 'min:0'],
             'max_total' => ['nullable', 'numeric', 'min:0', 'gte:min_total'],
         ], [], [
             'cashier_id' => 'cashier',
+            'customer_id' => 'customer',
             'min_total' => 'minimum total',
             'max_total' => 'maximum total',
         ]);
@@ -56,6 +61,9 @@ class TransactionController extends Controller
             'cashier_id' => array_key_exists('cashier_id', $validated) && $validated['cashier_id'] !== null
                 ? (int) $validated['cashier_id']
                 : null,
+            'customer_id' => array_key_exists('customer_id', $validated) && $validated['customer_id'] !== null
+                ? (int) $validated['customer_id']
+                : null,
             'min_total' => array_key_exists('min_total', $validated) && $validated['min_total'] !== null
                 ? (float) $validated['min_total']
                 : null,
@@ -64,7 +72,7 @@ class TransactionController extends Controller
                 : null,
         ];
 
-        $transactionsQuery = Transaction::query()->with(['user']);
+        $transactionsQuery = Transaction::query()->with(['user', 'customer']);
         $this->applyHistoryFilters($transactionsQuery, $filters);
 
         $transactions = $transactionsQuery
@@ -83,6 +91,14 @@ class TransactionController extends Controller
                     'cashier' => $transaction->user ? [
                         'id' => $transaction->user->id,
                         'name' => $transaction->user->name,
+                    ] : null,
+                    'customer' => $transaction->customer ? [
+                        'id' => $transaction->customer->id,
+                        'name' => $transaction->customer->name,
+                        'email' => $transaction->customer->email,
+                        'phone' => $transaction->customer->phone,
+                        'loyalty_number' => $transaction->customer->loyalty_number,
+                        'loyalty_points' => $transaction->customer->loyalty_points,
                     ] : null,
                     'detail_url' => route('transactions.customer', $transaction),
                 ];
@@ -131,12 +147,23 @@ class TransactionController extends Controller
             ])
             ->values();
 
+        $customers = Customer::query()
+            ->select(['id', 'name'])
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Customer $customer) => [
+                'id' => $customer->id,
+                'name' => $customer->name,
+            ])
+            ->values();
+
         return Inertia::render('transactions/history', [
             'filters' => $filters,
             'transactions' => $transactions,
             'summary' => $summary,
             'daily' => $daily,
             'cashiers' => $cashiers,
+            'customers' => $customers,
             'historyUrl' => route('transactions.history'),
             'employeeUrl' => route('transactions.employee'),
         ]);
@@ -223,6 +250,7 @@ class TransactionController extends Controller
             $transaction = Transaction::query()->create([
                 'number' => $this->generateNumber(),
                 'user_id' => $request->user()?->id,
+                'customer_id' => $request->validated('customer_id'),
                 'items_count' => $items->sum('quantity'),
                 'ppn_rate' => $ppnRate,
                 'subtotal' => $subtotal,
@@ -283,7 +311,7 @@ class TransactionController extends Controller
 
     public function customer(Transaction $transaction): Response
     {
-        $transaction->loadMissing(['items', 'user']);
+        $transaction->loadMissing(['items', 'user', 'customer']);
 
         return Inertia::render('transactions/customer', [
             'transaction' => $this->formatTransaction($transaction),
@@ -296,7 +324,7 @@ class TransactionController extends Controller
     {
         $transaction = Transaction::query()
             ->latest()
-            ->with(['items', 'user'])
+            ->with(['items', 'user', 'customer'])
             ->first();
 
         return Inertia::render('transactions/customer', [
@@ -326,6 +354,14 @@ class TransactionController extends Controller
                 'id' => $transaction->user->id,
                 'name' => $transaction->user->name,
             ] : null,
+            'customer' => $transaction->customer ? [
+                'id' => $transaction->customer->id,
+                'name' => $transaction->customer->name,
+                'email' => $transaction->customer->email,
+                'phone' => $transaction->customer->phone,
+                'loyalty_number' => $transaction->customer->loyalty_number,
+                'loyalty_points' => $transaction->customer->loyalty_points,
+            ] : null,
             'items' => $transaction->items
                 ->map(fn ($item) => [
                     'id' => $item->id,
@@ -353,7 +389,7 @@ class TransactionController extends Controller
     }
 
     /**
-     * @param  array{start_date: string|null, end_date: string|null, cashier_id: int|string|null, min_total: float|int|string|null, max_total: float|int|string|null}  $filters
+     * @param  array{start_date: string|null, end_date: string|null, cashier_id: int|string|null, customer_id: int|string|null, min_total: float|int|string|null, max_total: float|int|string|null}  $filters
      */
     protected function applyHistoryFilters(Builder $query, array $filters): void
     {
@@ -369,6 +405,10 @@ class TransactionController extends Controller
 
         if (($filters['cashier_id'] ?? null) !== null && $filters['cashier_id'] !== '') {
             $query->where('user_id', (int) $filters['cashier_id']);
+        }
+
+        if (($filters['customer_id'] ?? null) !== null && $filters['customer_id'] !== '') {
+            $query->where('customer_id', (int) $filters['customer_id']);
         }
 
         if (($filters['min_total'] ?? null) !== null && $filters['min_total'] !== '') {
