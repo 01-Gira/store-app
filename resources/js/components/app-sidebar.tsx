@@ -38,16 +38,19 @@ const mainNavItems: NavItem[] = [
         title: 'Roles',
         href: '/master/roles',
         icon: Shield,
+        permissions: ['manage roles'],
     },
     {
         title: 'Users',
         href: '/master/users',
         icon: Users,
+        permissions: ['manage users'],
     },
     {
         title: 'Permissions',
         href: '/master/permissions',
         icon: KeyRound,
+        permissions: ['manage permissions'],
     },
     {
         title: 'Products',
