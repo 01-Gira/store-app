@@ -20,6 +20,16 @@ interface TransactionProduct {
     price: number;
 }
 
+interface CustomerSummary {
+    id: number;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    loyalty_number: string | null;
+    loyalty_points: number;
+    enrolled_at?: string | null;
+}
+
 interface EmployeeTransactionsPageProps {
     ppnRate: number;
     productLookupUrl: string;
@@ -27,6 +37,8 @@ interface EmployeeTransactionsPageProps {
     recentTransactionId?: number | null;
     customerBaseUrl: string;
     customerLatestUrl: string;
+    customerSearchUrl: string;
+    customerStoreUrl: string;
 }
 
 interface CartItem extends TransactionProduct {
@@ -47,6 +59,7 @@ type PaymentMethod = 'cash' | 'card' | 'bank_transfer' | 'e_wallet' | 'other';
 
 interface TransactionFormData {
     items: { product_id: number; quantity: number }[];
+    customer_id: number | null;
     discount_type: DiscountType | null;
     discount_value: number | null;
     payment_method: PaymentMethod;
@@ -64,6 +77,8 @@ export default function EmployeeTransactions({
     recentTransactionId,
     customerBaseUrl,
     customerLatestUrl,
+    customerSearchUrl,
+    customerStoreUrl,
 }: EmployeeTransactionsPageProps) {
     const { flash } = usePage<SharedData>().props;
     const [items, setItems] = useState<CartItem[]>([]);
@@ -82,9 +97,27 @@ export default function EmployeeTransactions({
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
     const [amountPaidInput, setAmountPaidInput] = useState('');
     const [notes, setNotes] = useState('');
+    const [customerQuery, setCustomerQuery] = useState('');
+    const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null);
+    const [customerResults, setCustomerResults] = useState<CustomerSummary[]>([]);
+    const [customerSearchMessage, setCustomerSearchMessage] = useState<string | null>(null);
+    const [isSearchingCustomers, setIsSearchingCustomers] = useState(false);
+    const customerSearchAbortRef = useRef<AbortController | null>(null);
+    const [showEnrollmentForm, setShowEnrollmentForm] = useState(false);
+    const [enrollData, setEnrollData] = useState({
+        name: '',
+        email: '',
+        phone: '',
+        loyalty_number: '',
+        notes: '',
+    });
+    const [enrollErrors, setEnrollErrors] = useState<Record<string, string[]>>({});
+    const [enrollStatus, setEnrollStatus] = useState<string | null>(null);
+    const [isSubmittingEnrollment, setIsSubmittingEnrollment] = useState(false);
 
     const form = useForm<TransactionFormData>({
         items: [],
+        customer_id: null,
         discount_type: null,
         discount_value: null,
         payment_method: 'cash',
@@ -185,6 +218,84 @@ export default function EmployeeTransactions({
     }, [recentTransactionId, customerUrl]);
 
     useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        const query = customerQuery.trim();
+
+        customerSearchAbortRef.current?.abort();
+
+        if (!customerSearchUrl) {
+            return;
+        }
+
+        if (query === '') {
+            setCustomerResults([]);
+            setCustomerSearchMessage(null);
+            setIsSearchingCustomers(false);
+            return;
+        }
+
+        if (query.length < 2) {
+            setCustomerResults([]);
+            setCustomerSearchMessage('Masukkan minimal 2 karakter untuk mencari pelanggan.');
+            setIsSearchingCustomers(false);
+            return;
+        }
+
+        const controller = new AbortController();
+        customerSearchAbortRef.current = controller;
+
+        setIsSearchingCustomers(true);
+        setCustomerSearchMessage('Mencari pelanggan...');
+
+        const timeout = window.setTimeout(async () => {
+            try {
+                const response = await fetch(
+                    `${customerSearchUrl}?q=${encodeURIComponent(query)}`,
+                    {
+                        signal: controller.signal,
+                        headers: {
+                            Accept: 'application/json',
+                        },
+                    },
+                );
+
+                if (!response.ok) {
+                    throw new Error('Unable to search customers');
+                }
+
+                const payload = (await response.json()) as { data: CustomerSummary[] };
+
+                setCustomerResults(payload.data);
+                setCustomerSearchMessage(
+                    payload.data.length === 0
+                        ? `Tidak ditemukan pelanggan untuk "${query}".`
+                        : null,
+                );
+            } catch (error) {
+                if (controller.signal.aborted) {
+                    return;
+                }
+
+                console.error(error);
+                setCustomerResults([]);
+                setCustomerSearchMessage('Tidak dapat memuat pelanggan saat ini. Coba lagi.');
+            } finally {
+                if (!controller.signal.aborted) {
+                    setIsSearchingCustomers(false);
+                }
+            }
+        }, 300);
+
+        return () => {
+            window.clearTimeout(timeout);
+            controller.abort();
+        };
+    }, [customerQuery, customerSearchUrl]);
+
+    useEffect(() => {
         if (!scannerEnabled) {
             cleanupScanner();
             return;
@@ -232,6 +343,10 @@ export default function EmployeeTransactions({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [scannerEnabled]);
 
+    useEffect(() => {
+        form.setData('customer_id', selectedCustomer ? selectedCustomer.id : null);
+    }, [selectedCustomer, form]);
+
     const cleanupScanner = () => {
         readerRef.current?.reset();
         readerRef.current = null;
@@ -243,6 +358,104 @@ export default function EmployeeTransactions({
 
         if (videoRef.current) {
             videoRef.current.srcObject = null;
+        }
+    };
+
+    const handleSelectCustomer = (customer: CustomerSummary) => {
+        setSelectedCustomer(customer);
+        setCustomerQuery(customer.name);
+        setCustomerResults([]);
+        setCustomerSearchMessage(null);
+        setShowEnrollmentForm(false);
+    };
+
+    const handleClearCustomer = () => {
+        setSelectedCustomer(null);
+        setCustomerQuery('');
+        setCustomerResults([]);
+        setCustomerSearchMessage(null);
+    };
+
+    const handleEnrollmentInputChange = (
+        field: keyof typeof enrollData,
+        value: string,
+    ) => {
+        setEnrollData((current) => ({
+            ...current,
+            [field]: value,
+        }));
+    };
+
+    const resolveCsrfToken = (): string => {
+        if (typeof document === 'undefined') {
+            return '';
+        }
+
+        const meta = document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement | null;
+
+        return meta?.content ?? '';
+    };
+
+    const handleEnrollSubmit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (!customerStoreUrl) {
+            return;
+        }
+
+        setEnrollErrors({});
+        setEnrollStatus(null);
+        setIsSubmittingEnrollment(true);
+
+        try {
+            const response = await fetch(customerStoreUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': resolveCsrfToken(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify(enrollData),
+            });
+
+            if (response.status === 422) {
+                const validation = await response.json();
+                setEnrollErrors(validation.errors ?? {});
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error('Failed to enroll customer');
+            }
+
+            const payload = (await response.json()) as {
+                customer: CustomerSummary & { notes?: string | null };
+            };
+
+            const created: CustomerSummary = {
+                id: payload.customer.id,
+                name: payload.customer.name,
+                email: payload.customer.email ?? null,
+                phone: payload.customer.phone ?? null,
+                loyalty_number: payload.customer.loyalty_number ?? null,
+                loyalty_points: payload.customer.loyalty_points,
+                enrolled_at: payload.customer.enrolled_at ?? null,
+            };
+
+            setSelectedCustomer(created);
+            setCustomerQuery(created.name);
+            setCustomerResults([]);
+            setCustomerSearchMessage(null);
+            setShowEnrollmentForm(false);
+            setEnrollData({ name: '', email: '', phone: '', loyalty_number: '', notes: '' });
+            setEnrollErrors({});
+            setEnrollStatus('Pelanggan berhasil didaftarkan dan ditautkan ke transaksi.');
+        } catch (error) {
+            console.error(error);
+            setEnrollStatus('Terjadi kesalahan saat mendaftarkan pelanggan. Coba lagi.');
+        } finally {
+            setIsSubmittingEnrollment(false);
         }
     };
 
@@ -431,6 +644,7 @@ export default function EmployeeTransactions({
                 quantity: item.quantity,
             })),
         );
+        form.setData('customer_id', selectedCustomer ? selectedCustomer.id : null);
 
         form.post(storeUrl, {
             preserveScroll: true,
@@ -441,12 +655,23 @@ export default function EmployeeTransactions({
                 setPaymentMethod('cash');
                 setAmountPaidInput('');
                 setNotes('');
+                setSelectedCustomer(null);
+                setCustomerQuery('');
+                setCustomerResults([]);
+                setCustomerSearchMessage(null);
+                setShowEnrollmentForm(false);
+                setEnrollData({ name: '', email: '', phone: '', loyalty_number: '', notes: '' });
+                setEnrollErrors({});
+                setEnrollStatus(null);
                 form.reset();
             },
         });
     };
 
     useEffect(() => () => cleanupScanner(), []);
+    useEffect(() => () => {
+        customerSearchAbortRef.current?.abort();
+    }, []);
 
     return (
         <AppLayout>
@@ -684,6 +909,203 @@ export default function EmployeeTransactions({
                                     <span className="font-medium">{formatCurrency(changeDue)}</span>
                                 </div>
                             </div>
+                        </Card>
+
+                        <Card className="space-y-4 p-4">
+                            <div>
+                                <h3 className="text-lg font-semibold">Customer</h3>
+                                <p className="text-sm text-muted-foreground">
+                                    Connect this sale to a customer to track loyalty benefits.
+                                </p>
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="customer-search">Search customers</Label>
+                                <Input
+                                    id="customer-search"
+                                    value={customerQuery}
+                                    onChange={(event) => setCustomerQuery(event.target.value)}
+                                    placeholder="Search by name, email, or phone"
+                                    autoComplete="off"
+                                />
+                            </div>
+
+                            {isSearchingCustomers && (
+                                <p className="text-xs text-muted-foreground">Searching customers…</p>
+                            )}
+
+                            {customerSearchMessage && (
+                                <p className="text-xs text-muted-foreground">{customerSearchMessage}</p>
+                            )}
+
+                            {customerResults.length > 0 && (
+                                <ul className="max-h-48 space-y-2 overflow-y-auto rounded-md border border-border p-2 text-sm">
+                                    {customerResults.map((customer) => (
+                                        <li key={customer.id}>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSelectCustomer(customer)}
+                                                className="w-full rounded-md px-3 py-2 text-left transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                                            >
+                                                <div className="font-medium text-foreground">{customer.name}</div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    {[customer.email, customer.phone, customer.loyalty_number]
+                                                        .filter(Boolean)
+                                                        .join(' • ')}
+                                                </div>
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+
+                            {selectedCustomer && (
+                                <div className="space-y-2 rounded-md border border-primary/40 bg-primary/5 p-3 text-sm">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <div className="text-sm font-semibold text-primary">
+                                                {selectedCustomer.name}
+                                            </div>
+                                            <div className="space-y-0.5 text-xs text-muted-foreground">
+                                                {selectedCustomer.email && <div>Email: {selectedCustomer.email}</div>}
+                                                {selectedCustomer.phone && <div>Phone: {selectedCustomer.phone}</div>}
+                                                {selectedCustomer.loyalty_number && (
+                                                    <div>Loyalty ID: {selectedCustomer.loyalty_number}</div>
+                                                )}
+                                                <div>
+                                                    Points:{' '}
+                                                    {selectedCustomer.loyalty_points.toLocaleString('id-ID')}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleClearCustomer}
+                                        >
+                                            Remove
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            <InputError message={form.errors.customer_id} />
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        setEnrollStatus(null);
+                                        setEnrollErrors({});
+                                        setShowEnrollmentForm((value) => !value);
+                                    }}
+                                >
+                                    {showEnrollmentForm ? 'Close enrollment' : 'Enroll new customer'}
+                                </Button>
+                                {selectedCustomer && (
+                                    <span className="text-xs text-muted-foreground">
+                                        Customer will be linked to this transaction.
+                                    </span>
+                                )}
+                            </div>
+
+                            {!showEnrollmentForm && enrollStatus && (
+                                <p className="text-xs text-muted-foreground">{enrollStatus}</p>
+                            )}
+
+                            {showEnrollmentForm && (
+                                <form
+                                    className="space-y-3 rounded-md border border-dashed border-border p-4"
+                                    onSubmit={handleEnrollSubmit}
+                                >
+                                    <div>
+                                        <h4 className="text-sm font-semibold">New customer details</h4>
+                                        <p className="text-xs text-muted-foreground">
+                                            Enter contact information to enrol them in the loyalty program.
+                                        </p>
+                                    </div>
+
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="enroll-name">Full name</Label>
+                                        <Input
+                                            id="enroll-name"
+                                            value={enrollData.name}
+                                            onChange={(event) =>
+                                                handleEnrollmentInputChange('name', event.target.value)
+                                            }
+                                            required
+                                        />
+                                        <InputError message={enrollErrors.name?.[0]} />
+                                    </div>
+
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="enroll-email">Email</Label>
+                                        <Input
+                                            id="enroll-email"
+                                            type="email"
+                                            value={enrollData.email}
+                                            onChange={(event) =>
+                                                handleEnrollmentInputChange('email', event.target.value)
+                                            }
+                                        />
+                                        <InputError message={enrollErrors.email?.[0]} />
+                                    </div>
+
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="enroll-phone">Phone</Label>
+                                        <Input
+                                            id="enroll-phone"
+                                            value={enrollData.phone}
+                                            onChange={(event) =>
+                                                handleEnrollmentInputChange('phone', event.target.value)
+                                            }
+                                        />
+                                        <InputError message={enrollErrors.phone?.[0]} />
+                                    </div>
+
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="enroll-loyalty">Loyalty number</Label>
+                                        <Input
+                                            id="enroll-loyalty"
+                                            value={enrollData.loyalty_number}
+                                            onChange={(event) =>
+                                                handleEnrollmentInputChange('loyalty_number', event.target.value)
+                                            }
+                                        />
+                                        <InputError message={enrollErrors.loyalty_number?.[0]} />
+                                    </div>
+
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="enroll-notes">Notes</Label>
+                                        <textarea
+                                            id="enroll-notes"
+                                            value={enrollData.notes}
+                                            onChange={(event) =>
+                                                handleEnrollmentInputChange('notes', event.target.value)
+                                            }
+                                            className="min-h-[72px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2"
+                                        />
+                                        <InputError message={enrollErrors.notes?.[0]} />
+                                    </div>
+
+                                    {enrollStatus && (
+                                        <p className="text-xs text-muted-foreground">{enrollStatus}</p>
+                                    )}
+
+                                    <div className="flex items-center justify-end gap-2">
+                                        <Button
+                                            type="submit"
+                                            size="sm"
+                                            disabled={isSubmittingEnrollment}
+                                        >
+                                            {isSubmittingEnrollment ? 'Saving…' : 'Save customer'}
+                                        </Button>
+                                    </div>
+                                </form>
+                            )}
                         </Card>
 
                         <Card className="p-4">

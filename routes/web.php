@@ -8,6 +8,7 @@ use App\Http\Controllers\Master\PermissionController;
 use App\Http\Controllers\Master\ProductController;
 use App\Http\Controllers\Master\RoleController;
 use App\Http\Controllers\Master\UserController;
+use App\Http\Controllers\Transactions\CustomerController as TransactionsCustomerController;
 use App\Http\Controllers\Transactions\TransactionController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -26,6 +27,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('customer/latest', [TransactionController::class, 'latest'])->name('customer.latest');
         Route::get('customer/{transaction}', [TransactionController::class, 'customer'])->name('customer');
         Route::get('history', [TransactionController::class, 'history'])->name('history');
+        Route::get('customers', [TransactionsCustomerController::class, 'index'])->name('customers.index');
+        Route::post('customers', [TransactionsCustomerController::class, 'store'])->name('customers.store');
     });
 
     Route::prefix('master')->name('master.')->group(function () {

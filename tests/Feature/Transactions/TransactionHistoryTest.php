@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Customer;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -9,11 +10,12 @@ use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
 
-function createTransactionRecord(?User $cashier, Carbon $createdAt, float $subtotal, float $taxTotal, float $total, int $items): Transaction
+function createTransactionRecord(?User $cashier, Carbon $createdAt, float $subtotal, float $taxTotal, float $total, int $items, ?Customer $customer = null): Transaction
 {
     $transaction = Transaction::query()->create([
         'number' => sprintf('TRX-%s', Str::upper(Str::random(8))),
         'user_id' => $cashier?->id,
+        'customer_id' => $customer?->id,
         'items_count' => $items,
         'ppn_rate' => 11.0,
         'subtotal' => $subtotal,
@@ -48,6 +50,7 @@ test('authorized users can view transaction history overview', function () {
     $user = User::factory()->create();
     $cashierA = User::factory()->create(['name' => 'Kasir A']);
     $cashierB = User::factory()->create(['name' => 'Kasir B']);
+    $customer = Customer::factory()->create(['name' => 'Pelanggan Loyal']);
 
     $first = createTransactionRecord(
         $cashierA,
@@ -56,6 +59,7 @@ test('authorized users can view transaction history overview', function () {
         taxTotal: 15.0,
         total: 165.0,
         items: 4,
+        customer: $customer,
     );
 
     $second = createTransactionRecord(
@@ -82,6 +86,10 @@ test('authorized users can view transaction history overview', function () {
             ->where('summary.transactions', 2)
             ->where('summary.total', 385)
             ->has('cashiers', 3) // includes the acting user in the selectable cashiers
+            ->has('customers', 1, fn (Assert $customerOption) => $customerOption
+                ->where('id', $customer->id)
+                ->where('name', $customer->name)
+            )
         );
 });
 
@@ -89,6 +97,8 @@ test('filters restrict the transaction history results', function () {
     $viewer = User::factory()->create();
     $cashier = User::factory()->create(['name' => 'Cashier Filtered']);
     $otherCashier = User::factory()->create();
+    $customer = Customer::factory()->create(['name' => 'Customer Filtered']);
+    $otherCustomer = Customer::factory()->create(['name' => 'Other Customer']);
 
     createTransactionRecord(
         $cashier,
@@ -97,6 +107,7 @@ test('filters restrict the transaction history results', function () {
         taxTotal: 12.0,
         total: 132.0,
         items: 3,
+        customer: $otherCustomer,
     );
 
     $matching = createTransactionRecord(
@@ -106,6 +117,7 @@ test('filters restrict the transaction history results', function () {
         taxTotal: 18.0,
         total: 198.0,
         items: 5,
+        customer: $customer,
     );
 
     createTransactionRecord(
@@ -115,6 +127,7 @@ test('filters restrict the transaction history results', function () {
         taxTotal: 25.0,
         total: 275.0,
         items: 7,
+        customer: $customer,
     );
 
     $this->actingAs($viewer)
@@ -122,6 +135,7 @@ test('filters restrict the transaction history results', function () {
             'start_date' => '2024-01-10',
             'end_date' => '2024-01-20',
             'cashier_id' => $cashier->id,
+            'customer_id' => $customer->id,
             'min_total' => 150,
             'max_total' => 220,
         ]))
@@ -131,10 +145,12 @@ test('filters restrict the transaction history results', function () {
             ->where('filters.start_date', '2024-01-10')
             ->where('filters.end_date', '2024-01-20')
             ->where('filters.cashier_id', $cashier->id)
+            ->where('filters.customer_id', $customer->id)
             ->where('filters.min_total', 150)
             ->where('filters.max_total', 220)
             ->has('transactions.data', 1, fn (Assert $item) => $item
                 ->where('id', $matching->id)
+                ->where('customer.id', $customer->id)
                 ->where('total', fn ($value) => (float) $value === 198.0)
                 ->etc()
             )
@@ -145,5 +161,48 @@ test('filters restrict the transaction history results', function () {
                 ->where('transactions', 1)
                 ->etc()
             )
+        );
+});
+
+test('transaction history can be filtered by customer only', function () {
+    $viewer = User::factory()->create();
+    $customer = Customer::factory()->create(['name' => 'History Customer']);
+    $otherCustomer = Customer::factory()->create();
+
+    $matching = createTransactionRecord(
+        $viewer,
+        Carbon::parse('2024-03-01 12:00:00'),
+        subtotal: 90.0,
+        taxTotal: 9.0,
+        total: 99.0,
+        items: 2,
+        customer: $customer,
+    );
+
+    createTransactionRecord(
+        $viewer,
+        Carbon::parse('2024-03-02 15:00:00'),
+        subtotal: 110.0,
+        taxTotal: 11.0,
+        total: 121.0,
+        items: 3,
+        customer: $otherCustomer,
+    );
+
+    $this->actingAs($viewer)
+        ->get(route('transactions.history', [
+            'customer_id' => $customer->id,
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('transactions/history')
+            ->where('filters.customer_id', $customer->id)
+            ->has('transactions.data', 1, fn (Assert $item) => $item
+                ->where('id', $matching->id)
+                ->where('customer.id', $customer->id)
+                ->etc()
+            )
+            ->where('summary.transactions', 1)
+            ->where('summary.total', fn ($value) => (float) $value === 99.0)
         );
 });

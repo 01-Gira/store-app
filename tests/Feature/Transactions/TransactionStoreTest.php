@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Transaction;
 use App\Models\User;
@@ -120,6 +121,30 @@ test('discount values require a matching type', function () {
         ->assertSessionHasErrors(['discount_type']);
 
     expect(Transaction::count())->toBe(0);
+});
+
+test('transactions may be associated with a customer', function () {
+    $user = User::factory()->create();
+    $customer = Customer::factory()->create();
+    $product = createProduct(['stock' => 2, 'price' => 150]);
+
+    $response = $this->actingAs($user)->post(route('transactions.store'), [
+        'items' => [
+            ['product_id' => $product->id, 'quantity' => 1],
+        ],
+        'customer_id' => $customer->id,
+        'payment_method' => 'cash',
+        'amount_paid' => 200,
+    ]);
+
+    $response->assertRedirect(route('transactions.employee'));
+
+    $transaction = Transaction::query()->latest()->first();
+
+    expect($transaction)
+        ->not->toBeNull()
+        ->and($transaction?->customer_id)->toBe($customer->id)
+        ->and($transaction?->customer?->is($customer))->toBeTrue();
 });
 
 test('percentage discounts cannot exceed 100 percent', function () {
