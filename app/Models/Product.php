@@ -62,6 +62,11 @@ class Product extends Model
         return $this->hasMany(InventoryLevel::class);
     }
 
+    public function inventoryAdjustments(): HasMany
+    {
+        return $this->hasMany(InventoryAdjustment::class);
+    }
+
     public function lots(): HasMany
     {
         return $this->hasMany(ProductLot::class);
