@@ -8,5 +8,7 @@ return [
     ],
     'inventory' => [
         'low_stock_threshold' => 10,
+        'notification_roles' => ['Administrator'],
+        'notification_channels' => ['mail', 'database'],
     ],
 ];

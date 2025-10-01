@@ -33,6 +33,8 @@ class ProductsExport implements FromCollection, WithHeadings, WithMapping
             $product->name,
             $product->stock,
             $product->price,
+            $product->reorder_point,
+            $product->reorder_quantity,
             $product->image_path,
             $product->categories
                 ->sortBy('name')
@@ -46,6 +48,16 @@ class ProductsExport implements FromCollection, WithHeadings, WithMapping
      */
     public function headings(): array
     {
-        return ['id', 'barcode', 'name', 'stock', 'price', 'image_path', 'categories'];
+        return [
+            'id',
+            'barcode',
+            'name',
+            'stock',
+            'price',
+            'reorder_point',
+            'reorder_quantity',
+            'image_path',
+            'categories',
+        ];
     }
 }
