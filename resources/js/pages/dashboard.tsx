@@ -11,7 +11,7 @@ import {
     ClipboardList,
     Coins,
     PackageOpen,
-    ReceiptPercent,
+    Receipt,
     ShoppingBag,
     Timer,
     TrendingUp,
@@ -462,7 +462,7 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
                                 <CardDescription>Periode {periodLabel}</CardDescription>
                             </div>
                             <div className="rounded-full bg-amber-500/10 p-2 text-amber-600 dark:bg-amber-500/20 dark:text-amber-200">
-                                <ReceiptPercent className="h-5 w-5" />
+                                <Receipt className="h-5 w-5" />
                             </div>
                         </CardHeader>
                         <CardContent>
