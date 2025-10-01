@@ -81,6 +81,8 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
+const NO_SUPPLIER_VALUE = 'none';
+
 const formatPrice = (price: string | number): string => {
     const numeric = typeof price === 'string' ? Number.parseFloat(price) : price;
 
@@ -453,16 +455,27 @@ export default function ProductsIndex({
                                 <div className="space-y-2">
                                     <Label htmlFor="product-supplier">Supplier</Label>
                                     <Select
-                                        value={createForm.data.supplier_id}
+                                        value={
+                                            createForm.data.supplier_id === ''
+                                                ? NO_SUPPLIER_VALUE
+                                                : createForm.data.supplier_id
+                                        }
                                         onValueChange={(value) =>
-                                            createForm.setData('supplier_id', value)
+                                            createForm.setData(
+                                                'supplier_id',
+                                                value === NO_SUPPLIER_VALUE
+                                                    ? ''
+                                                    : value,
+                                            )
                                         }
                                     >
                                         <SelectTrigger id="product-supplier">
                                             <SelectValue placeholder="Select a supplier" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="">No supplier</SelectItem>
+                                            <SelectItem value={NO_SUPPLIER_VALUE}>
+                                                No supplier
+                                            </SelectItem>
                                             {availableSuppliers.map((supplier) => (
                                                 <SelectItem
                                                     key={supplier.id}
@@ -917,11 +930,20 @@ export default function ProductsIndex({
                                                                     <div className="space-y-2">
                                                                         <Label htmlFor="edit-supplier">Supplier</Label>
                                                                         <Select
-                                                                            value={editForm.data.supplier_id}
+                                                                            value={
+                                                                                editForm.data
+                                                                                    .supplier_id === ''
+                                                                                    ? NO_SUPPLIER_VALUE
+                                                                                    : editForm.data
+                                                                                          .supplier_id
+                                                                            }
                                                                             onValueChange={(value) =>
                                                                                 editForm.setData(
                                                                                     'supplier_id',
-                                                                                    value,
+                                                                                    value ===
+                                                                                        NO_SUPPLIER_VALUE
+                                                                                        ? ''
+                                                                                        : value,
                                                                                 )
                                                                             }
                                                                         >
@@ -929,7 +951,13 @@ export default function ProductsIndex({
                                                                                 <SelectValue placeholder="Select a supplier" />
                                                                             </SelectTrigger>
                                                                             <SelectContent>
-                                                                                <SelectItem value="">No supplier</SelectItem>
+                                                                                <SelectItem
+                                                                                    value={
+                                                                                        NO_SUPPLIER_VALUE
+                                                                                    }
+                                                                                >
+                                                                                    No supplier
+                                                                                </SelectItem>
                                                                                 {availableSuppliers.map((supplier) => (
                                                                                     <SelectItem
                                                                                         key={supplier.id}
