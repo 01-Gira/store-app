@@ -18,7 +18,12 @@ function createTransactionRecord(?User $cashier, Carbon $createdAt, float $subto
         'ppn_rate' => 11.0,
         'subtotal' => $subtotal,
         'tax_total' => $taxTotal,
+        'discount_total' => 0,
         'total' => $total,
+        'payment_method' => 'cash',
+        'amount_paid' => $total,
+        'change_due' => 0,
+        'notes' => null,
     ]);
 
     Transaction::withoutTimestamps(function () use ($transaction, $createdAt): void {
