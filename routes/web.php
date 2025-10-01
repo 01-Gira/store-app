@@ -22,6 +22,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('products/{product:barcode}', [TransactionController::class, 'showProduct'])->name('products.show');
         Route::get('customer/latest', [TransactionController::class, 'latest'])->name('customer.latest');
         Route::get('customer/{transaction}', [TransactionController::class, 'customer'])->name('customer');
+        Route::get('history', [TransactionController::class, 'history'])->name('history');
     });
 
     Route::prefix('master')->name('master.')->group(function () {
