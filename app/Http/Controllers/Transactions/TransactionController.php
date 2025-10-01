@@ -9,6 +9,9 @@ use App\Models\Product;
 use App\Models\StoreSetting;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\CustomerLoyaltyTransaction;
+use App\Services\Loyalty\TransactionLoyaltyService;
+use App\Support\Config\StoreConfig;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -24,6 +27,11 @@ use Inertia\Response;
 
 class TransactionController extends Controller
 {
+    public function __construct(
+        private readonly TransactionLoyaltyService $loyaltyService,
+    ) {
+    }
+
     public function employee(): Response
     {
         $settings = StoreSetting::current();
@@ -38,6 +46,12 @@ class TransactionController extends Controller
             'customerSearchUrl' => route('transactions.customers.index'),
             'customerStoreUrl' => route('transactions.customers.store'),
             'branding' => $this->transformBranding($settings),
+            'loyaltyConfig' => [
+                'pointsPerCurrency' => StoreConfig::loyaltyPointsPerCurrency(),
+                'currencyPerPoint' => StoreConfig::loyaltyCurrencyPerPoint(),
+                'minimumRedeemablePoints' => StoreConfig::loyaltyMinimumRedeemablePoints(),
+                'earningRounding' => StoreConfig::loyaltyEarningRounding(),
+            ],
         ]);
     }
 
@@ -239,6 +253,13 @@ class TransactionController extends Controller
 
         $total = round(max($grossTotal - $discountTotal, 0), 2);
 
+        $customerId = $request->validated('customer_id');
+        $customer = $customerId ? Customer::query()->find($customerId) : null;
+        $pointsToRedeem = $request->validated('loyalty_points_to_redeem');
+
+        $loyaltyAdjustment = $this->loyaltyService->preview($customer, $total, $pointsToRedeem);
+        $total = $loyaltyAdjustment->netTotal;
+
         $amountPaid = (float) $request->validated('amount_paid');
 
         if ($amountPaid < $total) {
@@ -251,7 +272,9 @@ class TransactionController extends Controller
         $paymentMethod = $request->validated('payment_method');
         $notes = $request->validated('notes');
 
-        $transaction = DB::transaction(function () use ($items, $subtotal, $taxTotal, $total, $discountTotal, $ppnRate, $request, $amountPaid, $changeDue, $paymentMethod, $notes) {
+        $transaction = DB::transaction(function () use ($items, $subtotal, $taxTotal, $total, $discountTotal, $ppnRate, $request, $amountPaid, $changeDue, $paymentMethod, $notes, $customer, $loyaltyAdjustment) {
+            $lockedCustomer = $customer?->exists ? Customer::query()->lockForUpdate()->find($customer->id) : null;
+
             $transaction = Transaction::query()->create([
                 'number' => $this->generateNumber(),
                 'user_id' => $request->user()?->id,
@@ -295,6 +318,10 @@ class TransactionController extends Controller
                 })->all(),
             );
 
+            if ($lockedCustomer !== null) {
+                $this->loyaltyService->finalize($lockedCustomer, $transaction, $loyaltyAdjustment);
+            }
+
             return $transaction;
         });
 
@@ -317,6 +344,12 @@ class TransactionController extends Controller
     public function customer(Transaction $transaction): Response
     {
         $transaction->loadMissing(['items', 'user', 'customer']);
+
+        if ($transaction->customer) {
+            $transaction->customer->loadMissing([
+                'loyaltyTransactions' => fn ($query) => $query->latest()->limit(10),
+            ]);
+        }
         $settings = StoreSetting::current();
 
         return Inertia::render('transactions/customer', [
@@ -334,6 +367,12 @@ class TransactionController extends Controller
             ->with(['items', 'user', 'customer'])
             ->first();
         $settings = StoreSetting::current();
+
+        if ($transaction && $transaction->customer) {
+            $transaction->customer->loadMissing([
+                'loyaltyTransactions' => fn ($query) => $query->latest()->limit(10),
+            ]);
+        }
 
         return Inertia::render('transactions/customer', [
             'transaction' => $transaction ? $this->formatTransaction($transaction) : null,
@@ -370,6 +409,20 @@ class TransactionController extends Controller
                 'phone' => $transaction->customer->phone,
                 'loyalty_number' => $transaction->customer->loyalty_number,
                 'loyalty_points' => $transaction->customer->loyalty_points,
+                'loyalty_history' => $transaction->customer->loyaltyTransactions
+                    ? $transaction->customer->loyaltyTransactions
+                        ->sortByDesc('created_at')
+                        ->values()
+                        ->map(fn (CustomerLoyaltyTransaction $record) => [
+                            'id' => $record->id,
+                            'type' => $record->type,
+                            'points_change' => $record->points_change,
+                            'points_balance' => $record->points_balance,
+                            'amount' => (float) $record->amount,
+                            'created_at' => $record->created_at?->toIso8601String(),
+                        ])
+                        ->toArray()
+                    : [],
             ] : null,
             'items' => $transaction->items
                 ->map(fn ($item) => [

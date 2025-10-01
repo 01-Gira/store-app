@@ -39,6 +39,9 @@ class StoreTransactionRequest extends FormRequest
             'discount_type' => $this->filled('discount_type') ? $this->input('discount_type') : null,
             'discount_value' => $this->filled('discount_value') ? $this->input('discount_value') : null,
             'notes' => $this->filled('notes') ? $this->input('notes') : null,
+            'loyalty_points_to_redeem' => $this->filled('loyalty_points_to_redeem')
+                ? $this->input('loyalty_points_to_redeem')
+                : null,
         ]);
     }
 
@@ -59,6 +62,7 @@ class StoreTransactionRequest extends FormRequest
             'payment_method' => ['required', 'string', Rule::in(self::PAYMENT_METHODS)],
             'amount_paid' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'loyalty_points_to_redeem' => ['nullable', 'integer', 'min:0'],
         ];
     }
 
@@ -85,6 +89,13 @@ class StoreTransactionRequest extends FormRequest
 
             if ($discountType === 'percentage' && is_numeric($rawDiscountValue) && (float) $rawDiscountValue > 100) {
                 $validator->errors()->add('discount_value', 'Percentage discounts cannot exceed 100%.');
+            }
+
+            $customerId = $this->input('customer_id');
+            $rawRedeem = $this->input('loyalty_points_to_redeem');
+
+            if ($rawRedeem !== null && $rawRedeem !== '' && !$customerId) {
+                $validator->errors()->add('loyalty_points_to_redeem', 'Select a customer before redeeming loyalty points.');
             }
         });
     }

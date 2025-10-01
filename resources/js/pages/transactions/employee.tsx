@@ -44,6 +44,13 @@ interface BrandingInfo {
     timezone: string;
 }
 
+interface LoyaltyConfig {
+    pointsPerCurrency: number;
+    currencyPerPoint: number;
+    minimumRedeemablePoints: number;
+    earningRounding: 'down' | 'nearest' | 'up';
+}
+
 interface EmployeeTransactionsPageProps {
     ppnRate: number;
     productLookupUrl: string;
@@ -54,6 +61,7 @@ interface EmployeeTransactionsPageProps {
     customerSearchUrl: string;
     customerStoreUrl: string;
     branding: BrandingInfo;
+    loyaltyConfig: LoyaltyConfig;
 }
 
 interface CartItem extends TransactionProduct {
@@ -61,6 +69,17 @@ interface CartItem extends TransactionProduct {
 }
 
 const roundCurrency = (value: number) => Math.round(value * 100) / 100;
+
+const roundPoints = (value: number, mode: LoyaltyConfig['earningRounding']) => {
+    switch (mode) {
+        case 'up':
+            return Math.ceil(value);
+        case 'nearest':
+            return Math.round(value);
+        default:
+            return Math.floor(value);
+    }
+};
 
 type DiscountType = 'percentage' | 'value';
 type PaymentMethod = 'cash' | 'card' | 'bank_transfer' | 'e_wallet' | 'other';
@@ -75,6 +94,7 @@ interface TransactionFormData {
     payment_method: PaymentMethod;
     amount_paid: number;
     notes: string;
+    loyalty_points_to_redeem: number | null;
 }
 
 const buildUrl = (template: string, placeholder: string, value: string | number) =>
@@ -90,6 +110,7 @@ export default function EmployeeTransactions({
     customerSearchUrl,
     customerStoreUrl,
     branding,
+    loyaltyConfig,
 }: EmployeeTransactionsPageProps) {
     const { flash, storeSettings } = usePage<SharedData>().props;
     const locale = branding.language_code ?? storeSettings?.language_code ?? 'id-ID';
@@ -105,6 +126,8 @@ export default function EmployeeTransactions({
     );
     const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
     const formatCurrency = (value: number) => currencyFormatter.format(value);
+    const { currencyPerPoint, minimumRedeemablePoints, pointsPerCurrency, earningRounding } =
+        loyaltyConfig;
     const [items, setItems] = useState<CartItem[]>([]);
     const [manualBarcode, setManualBarcode] = useState('');
     const [scannerEnabled, setScannerEnabled] = useState(false);
@@ -138,6 +161,7 @@ export default function EmployeeTransactions({
     const [enrollErrors, setEnrollErrors] = useState<Record<string, string[]>>({});
     const [enrollStatus, setEnrollStatus] = useState<string | null>(null);
     const [isSubmittingEnrollment, setIsSubmittingEnrollment] = useState(false);
+    const [pointsToRedeemInput, setPointsToRedeemInput] = useState('');
 
     const itemControls = useTableControls(items, {
         searchFields: [
@@ -164,6 +188,7 @@ export default function EmployeeTransactions({
         payment_method: 'cash',
         amount_paid: 0,
         notes: '',
+        loyalty_points_to_redeem: null,
     });
     const { setData } = form;
     const lastCustomerIdRef = useRef<number | null>(form.data.customer_id ?? null);
@@ -206,10 +231,83 @@ export default function EmployeeTransactions({
         return roundCurrency(Math.min(parsed, totals.total));
     }, [discountType, discountValueInput, totals.total]);
 
-    const amountDue = useMemo(
+    const totalAfterDiscount = useMemo(
         () => roundCurrency(Math.max(totals.total - discountAmount, 0)),
         [totals.total, discountAmount],
     );
+
+    const loyaltySummary = useMemo(() => {
+        const availablePoints = selectedCustomer?.loyalty_points ?? 0;
+        const requestedRaw = Number.parseInt(pointsToRedeemInput, 10);
+        const requestedPoints = Number.isNaN(requestedRaw) ? 0 : Math.max(requestedRaw, 0);
+
+        if (!selectedCustomer) {
+            return {
+                availablePoints,
+                requestedPoints,
+                effectivePoints: 0,
+                redemptionValue: 0,
+                netTotal: totalAfterDiscount,
+                pointsEarned: 0,
+            };
+        }
+
+        if (totalAfterDiscount <= 0 || currencyPerPoint <= 0) {
+            const netTotal = totalAfterDiscount;
+            const pointsEarned = pointsPerCurrency > 0
+                ? roundPoints(netTotal * pointsPerCurrency, earningRounding)
+                : 0;
+
+            return {
+                availablePoints,
+                requestedPoints,
+                effectivePoints: 0,
+                redemptionValue: 0,
+                netTotal,
+                pointsEarned,
+            };
+        }
+
+        let effectivePoints = Math.min(requestedPoints, availablePoints);
+        const maxByValue = Math.floor(totalAfterDiscount / currencyPerPoint);
+        if (maxByValue > 0) {
+            effectivePoints = Math.min(effectivePoints, maxByValue);
+        }
+
+        if (effectivePoints < minimumRedeemablePoints) {
+            effectivePoints = 0;
+        }
+
+        const redemptionValue = roundCurrency(effectivePoints * currencyPerPoint);
+        const netTotal = roundCurrency(Math.max(totalAfterDiscount - redemptionValue, 0));
+        const pointsEarned = pointsPerCurrency > 0
+            ? roundPoints(netTotal * pointsPerCurrency, earningRounding)
+            : 0;
+
+        return {
+            availablePoints,
+            requestedPoints,
+            effectivePoints,
+            redemptionValue,
+            netTotal,
+            pointsEarned,
+        };
+    }, [
+        currencyPerPoint,
+        earningRounding,
+        minimumRedeemablePoints,
+        pointsPerCurrency,
+        pointsToRedeemInput,
+        selectedCustomer,
+        totalAfterDiscount,
+    ]);
+
+    const amountDue = loyaltySummary.netTotal;
+    const effectivePointsToRedeem = loyaltySummary.effectivePoints;
+    const redemptionValue = loyaltySummary.redemptionValue;
+    const estimatedPointsEarned = loyaltySummary.pointsEarned;
+    const availableLoyaltyPoints = loyaltySummary.availablePoints;
+    const requestedLoyaltyPoints = loyaltySummary.requestedPoints;
 
     const normalizedAmountPaid = useMemo(() => {
         const parsed = Number.parseFloat(amountPaidInput);
@@ -447,6 +545,10 @@ export default function EmployeeTransactions({
         setData('customer_id', nextCustomerId);
     }, [selectedCustomer, setData]);
 
+    useEffect(() => {
+        setData('loyalty_points_to_redeem', effectivePointsToRedeem > 0 ? effectivePointsToRedeem : null);
+    }, [effectivePointsToRedeem, setData]);
+
     const cleanupScanner = () => {
         readerRef.current?.reset();
         readerRef.current = null;
@@ -467,6 +569,7 @@ export default function EmployeeTransactions({
         setCustomerResults([]);
         setCustomerSearchMessage(null);
         setShowEnrollmentForm(false);
+        setPointsToRedeemInput('');
     };
 
     const handleClearCustomer = () => {
@@ -474,6 +577,7 @@ export default function EmployeeTransactions({
         setCustomerQuery('');
         setCustomerResults([]);
         setCustomerSearchMessage(null);
+        setPointsToRedeemInput('');
     };
 
     const handleEnrollmentInputChange = (
@@ -797,6 +901,7 @@ export default function EmployeeTransactions({
                 setCustomerResults([]);
                 setCustomerSearchMessage(null);
                 setShowEnrollmentForm(false);
+                setPointsToRedeemInput('');
                 setEnrollData({ name: '', email: '', phone: '', loyalty_number: '', notes: '' });
                 setEnrollErrors({});
                 setEnrollStatus(null);
@@ -1095,6 +1200,20 @@ export default function EmployeeTransactions({
                                             : formatCurrency(0)}
                                     </span>
                                 </div>
+                                <div className="flex items-center justify-between">
+                                    <span>Total after discounts</span>
+                                    <span className="font-medium">
+                                        {formatCurrency(totalAfterDiscount)}
+                                    </span>
+                                </div>
+                                {redemptionValue > 0 && (
+                                    <div className="flex items-center justify-between">
+                                        <span>Loyalty redemption</span>
+                                        <span className="font-medium text-destructive">
+                                            - {formatCurrency(redemptionValue)}
+                                        </span>
+                                    </div>
+                                )}
                                 <Separator className="my-2" />
                                 <div className="flex items-center justify-between text-base font-semibold">
                                     <span>Amount due</span>
@@ -1113,6 +1232,14 @@ export default function EmployeeTransactions({
                                         <span>Outstanding</span>
                                         <span className="font-semibold">
                                             {formatCurrency(outstandingBalance)}
+                                        </span>
+                                    </div>
+                                )}
+                                {selectedCustomer && (
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span>Estimated points earned</span>
+                                        <span className="font-medium text-foreground">
+                                            {numberFormatter.format(estimatedPointsEarned)}
                                         </span>
                                     </div>
                                 )}
@@ -1187,7 +1314,7 @@ export default function EmployeeTransactions({
                             )}
 
                             {selectedCustomer && (
-                                <div className="space-y-2 rounded-md border border-primary/40 bg-primary/5 p-3 text-sm">
+                                <div className="space-y-3 rounded-md border border-primary/40 bg-primary/5 p-3 text-sm">
                                     <div className="flex items-start justify-between gap-3">
                                         <div>
                                             <div className="text-sm font-semibold text-primary">
@@ -1200,7 +1327,7 @@ export default function EmployeeTransactions({
                                                     <div>Loyalty ID: {selectedCustomer.loyalty_number}</div>
                                                 )}
                                                 <div>
-                                                    Points:{' '}
+                                                    Points balance:{' '}
                                                     {numberFormatter.format(selectedCustomer.loyalty_points)}
                                                 </div>
                                             </div>
@@ -1214,6 +1341,52 @@ export default function EmployeeTransactions({
                                             Remove
                                         </Button>
                                     </div>
+
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="loyalty-redeem">Points to redeem (optional)</Label>
+                                        <Input
+                                            id="loyalty-redeem"
+                                            type="number"
+                                            inputMode="numeric"
+                                            min={0}
+                                            step={1}
+                                            value={pointsToRedeemInput}
+                                            onChange={(event) => setPointsToRedeemInput(event.target.value)}
+                                            placeholder={minimumRedeemablePoints > 0
+                                                ? `Min ${numberFormatter.format(minimumRedeemablePoints)}`
+                                                : undefined}
+                                            disabled={currencyPerPoint <= 0 || totalAfterDiscount <= 0}
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            Available: {numberFormatter.format(availableLoyaltyPoints)} pts
+                                            {currencyPerPoint > 0 && (
+                                                <>
+                                                    {' '}
+                                                    ({formatCurrency(availableLoyaltyPoints * currencyPerPoint)})
+                                                </>
+                                            )}
+                                        </p>
+                                        {effectivePointsToRedeem > 0 && (
+                                            <p className="text-xs text-muted-foreground">
+                                                Applying {numberFormatter.format(effectivePointsToRedeem)} pts saves{' '}
+                                                {formatCurrency(redemptionValue)}.
+                                            </p>
+                                        )}
+                                        {requestedLoyaltyPoints > 0 && effectivePointsToRedeem === 0 && minimumRedeemablePoints > 0 && (
+                                            <p className="text-xs text-destructive">
+                                                Enter at least {numberFormatter.format(minimumRedeemablePoints)} pts or ensure
+                                                the purchase total is sufficient.
+                                            </p>
+                                        )}
+                                        <InputError message={form.errors.loyalty_points_to_redeem} />
+                                    </div>
+
+                                    {estimatedPointsEarned > 0 && (
+                                        <p className="text-xs text-muted-foreground">
+                                            Estimated to earn {numberFormatter.format(estimatedPointsEarned)} pts on this
+                                            sale.
+                                        </p>
+                                    )}
                                 </div>
                             )}
 

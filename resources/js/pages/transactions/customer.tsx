@@ -45,9 +45,19 @@ interface TransactionSummary {
               phone: string | null;
               loyalty_number: string | null;
               loyalty_points: number;
+              loyalty_history: LoyaltyHistoryEntry[];
           }
         | null;
     items: TransactionItemSummary[];
+}
+
+interface LoyaltyHistoryEntry {
+    id: number;
+    type: 'earn' | 'redeem';
+    points_change: number;
+    points_balance: number;
+    amount: number;
+    created_at: string | null;
 }
 
 interface BrandingInfo {
@@ -103,6 +113,10 @@ export default function CustomerDisplay({
         bank_transfer: 'Transfer bank',
         e_wallet: 'Dompet digital',
         other: 'Lainnya',
+    };
+    const loyaltyTypeLabels: Record<LoyaltyHistoryEntry['type'], string> = {
+        earn: 'Poin diterima',
+        redeem: 'Poin digunakan',
     };
 
     const formatCurrency = (value: number) => currencyFormatter.format(value);
@@ -460,6 +474,60 @@ export default function CustomerDisplay({
                                         </dd>
                                     </div>
                                 </dl>
+                                <div className="mt-6 space-y-3">
+                                    <h4 className="text-xl font-semibold">Riwayat loyalti terbaru</h4>
+                                    {transaction.customer.loyalty_history.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground">
+                                            Belum ada aktivitas loyalti untuk pelanggan ini.
+                                        </p>
+                                    ) : (
+                                        <div className="overflow-hidden rounded-lg border border-border">
+                                            <table className="min-w-full divide-y divide-border text-sm">
+                                                <thead className="bg-muted/50">
+                                                    <tr>
+                                                        <th className="px-4 py-3 text-left font-medium">Tanggal</th>
+                                                        <th className="px-4 py-3 text-left font-medium">Aktivitas</th>
+                                                        <th className="px-4 py-3 text-right font-medium">Perubahan poin</th>
+                                                        <th className="px-4 py-3 text-right font-medium">Saldo</th>
+                                                        <th className="px-4 py-3 text-right font-medium">Nominal</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-border">
+                                                    {transaction.customer.loyalty_history.map((entry) => {
+                                                        const formattedChange = `${entry.points_change > 0 ? '+' : ''}${entry.points_change.toLocaleString(numberLocale)}`;
+
+                                                        return (
+                                                            <tr key={entry.id}>
+                                                                <td className="px-4 py-3">
+                                                                    {entry.created_at ? formatDate(entry.created_at) : '-'}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {loyaltyTypeLabels[entry.type]}
+                                                                </td>
+                                                                <td
+                                                                    className={cn(
+                                                                        'px-4 py-3 text-right font-medium',
+                                                                        entry.points_change < 0
+                                                                            ? 'text-destructive'
+                                                                            : 'text-emerald-600 dark:text-emerald-400',
+                                                                    )}
+                                                                >
+                                                                    {formattedChange}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-right">
+                                                                    {entry.points_balance.toLocaleString(numberLocale)}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-right">
+                                                                    {formatCurrency(entry.amount)}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
