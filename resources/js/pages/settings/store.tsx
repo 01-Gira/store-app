@@ -40,7 +40,7 @@ export default function StoreSettings({ settings }: StoreSettingsPageProps) {
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        form.post('/settings/store', {
+        form.put('/settings/store', {
             method: 'put',
             forceFormData: true,
         });

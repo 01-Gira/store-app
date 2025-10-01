@@ -81,19 +81,21 @@ class DatabaseSeeder extends Seeder
             });
 
         $locations = Collection::make([
-            InventoryLocation::factory()->create([
-                'name' => 'Main Warehouse',
-                'code' => 'MAIN',
-                'is_default' => true,
-            ]),
-            InventoryLocation::factory()->create([
-                'name' => 'Front Store',
-                'code' => 'FRONT',
-            ]),
-            InventoryLocation::factory()->create([
-                'name' => 'Overflow Storage',
-                'code' => 'OVER',
-            ]),
+            InventoryLocation::firstOrCreate(
+                ['code' => 'MAIN'], // Attributes to find
+                [                   // Attributes to use if creating
+                    'name' => 'Main Warehouse',
+                    'is_default' => true,
+                ]
+            ),
+            InventoryLocation::firstOrCreate(
+                ['code' => 'FRONT'],
+                ['name' => 'Front Store']
+            ),
+            InventoryLocation::firstOrCreate(
+                ['code' => 'OVER'],
+                ['name' => 'Overflow Storage']
+            ),
         ]);
 
         $products->each(function (Product $product) use ($locations): void {

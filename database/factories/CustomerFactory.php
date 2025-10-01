@@ -21,7 +21,7 @@ class CustomerFactory extends Factory
             'name' => $name,
             'email' => $this->faker->unique()->safeEmail(),
             'phone' => $this->faker->e164PhoneNumber(),
-            'loyalty_number' => Str::upper($this->faker->bothify('LOY-####')),
+            'loyalty_number' => Str::upper($this->faker->unique->bothify('LOY-####')),
             'loyalty_points' => $this->faker->numberBetween(0, 5000),
             'enrolled_at' => $this->faker->dateTimeBetween('-2 years', 'now'),
             'notes' => $this->faker->boolean(30) ? $this->faker->sentence() : null,
