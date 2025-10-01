@@ -1,3 +1,4 @@
+import { TablePagination, TableToolbar } from '@/components/table-controls';
 import InputError from '@/components/input-error';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +26,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { ChangeEvent, FormEvent, useMemo, useState } from 'react';
+import { useTableControls } from '@/hooks/use-table-controls';
 import {
     AlertTriangle,
     Download,
@@ -235,6 +237,28 @@ export default function ProductsIndex({
         editForm.clearErrors();
         setProductBeingEdited(null);
     };
+
+    const productControls = useTableControls(products, {
+        searchFields: [
+            (product) => product.name,
+            (product) => product.barcode,
+            (product) => product.supplier?.name ?? '',
+        ],
+        filters: [
+            { label: 'Semua produk', value: 'all' },
+            {
+                label: 'Stok rendah',
+                value: 'low-stock',
+                predicate: (product) => product.is_low_stock,
+            },
+            {
+                label: 'Tanpa pemasok',
+                value: 'without-supplier',
+                predicate: (product) => product.supplier == null,
+            },
+        ],
+        initialPageSize: 10,
+    });
 
     const totalProducts = useMemo(() => products.length, [products.length]);
 
@@ -665,6 +689,20 @@ export default function ProductsIndex({
                             </div>
                         </header>
 
+                        <TableToolbar
+                            searchTerm={productControls.searchTerm}
+                            onSearchChange={productControls.setSearchTerm}
+                            searchPlaceholder="Cari nama produk atau barcode"
+                            filterOptions={productControls.filterOptions}
+                            filterValue={productControls.filterValue}
+                            onFilterChange={productControls.setFilterValue}
+                            pageSize={productControls.pageSize}
+                            pageSizeOptions={productControls.pageSizeOptions}
+                            onPageSizeChange={productControls.setPageSize}
+                            total={productControls.total}
+                            filteredTotal={productControls.filteredTotal}
+                        />
+
                         <div className="overflow-x-auto">
                             <table className="w-full min-w-[700px] text-sm">
                                 <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -681,7 +719,7 @@ export default function ProductsIndex({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {products.length === 0 ? (
+                                    {productControls.total === 0 ? (
                                         <tr>
                                             <td
                                                 colSpan={9}
@@ -690,8 +728,17 @@ export default function ProductsIndex({
                                                 No products yet. Use the form on the left to add your first item or import from a spreadsheet.
                                             </td>
                                         </tr>
+                                    ) : productControls.filteredTotal === 0 ? (
+                                        <tr>
+                                            <td
+                                                colSpan={9}
+                                                className="px-3 py-6 text-center text-sm text-muted-foreground"
+                                            >
+                                                Tidak ada produk yang cocok dengan pencarian atau filter.
+                                            </td>
+                                        </tr>
                                     ) : (
-                                        products.map((product) => (
+                                        productControls.items.map((product) => (
                                             <tr
                                                 key={product.id}
                                                 className={`border-b border-muted/50 last:border-b-0 ${
@@ -1143,6 +1190,15 @@ export default function ProductsIndex({
                                 </tbody>
                             </table>
                         </div>
+
+                        <TablePagination
+                            page={productControls.page}
+                            pageCount={productControls.pageCount}
+                            onPageChange={productControls.goToPage}
+                            range={productControls.range}
+                            total={productControls.total}
+                            filteredTotal={productControls.filteredTotal}
+                        />
                     </section>
                 </div>
             </div>

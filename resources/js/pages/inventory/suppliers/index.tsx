@@ -1,3 +1,4 @@
+import { TablePagination, TableToolbar } from '@/components/table-controls';
 import InputError from '@/components/input-error';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useTableControls } from '@/hooks/use-table-controls';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, useForm, usePage } from '@inertiajs/react';
@@ -160,6 +162,35 @@ export default function SuppliersIndex({
     const handleEditNotesChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
         editForm.setData('notes', event.target.value);
     };
+
+    const supplierControls = useTableControls(suppliers, {
+        searchFields: [
+            (supplier) => supplier.name,
+            (supplier) => supplier.contact_name ?? '',
+            (supplier) => supplier.email ?? '',
+            (supplier) => supplier.phone ?? '',
+            (supplier) => supplier.notes ?? '',
+        ],
+        filters: [
+            { label: 'Semua pemasok', value: 'all' },
+            {
+                label: 'Dengan kontak',
+                value: 'with-contact',
+                predicate: (supplier) => Boolean(supplier.contact_name),
+            },
+            {
+                label: 'Tanpa kontak',
+                value: 'without-contact',
+                predicate: (supplier) => !supplier.contact_name,
+            },
+            {
+                label: 'Dengan catatan',
+                value: 'with-notes',
+                predicate: (supplier) => Boolean(supplier.notes && supplier.notes.trim().length > 0),
+            },
+        ],
+        initialPageSize: 10,
+    });
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -338,6 +369,20 @@ export default function SuppliersIndex({
                             </div>
                         </header>
 
+                        <TableToolbar
+                            searchTerm={supplierControls.searchTerm}
+                            onSearchChange={supplierControls.setSearchTerm}
+                            searchPlaceholder="Cari nama, kontak, email atau catatan pemasok"
+                            filterOptions={supplierControls.filterOptions}
+                            filterValue={supplierControls.filterValue}
+                            onFilterChange={supplierControls.setFilterValue}
+                            pageSize={supplierControls.pageSize}
+                            pageSizeOptions={supplierControls.pageSizeOptions}
+                            onPageSizeChange={supplierControls.setPageSize}
+                            total={supplierControls.total}
+                            filteredTotal={supplierControls.filteredTotal}
+                        />
+
                         <div className="overflow-x-auto">
                             <table className="w-full min-w-[720px] text-sm">
                                 <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -353,7 +398,7 @@ export default function SuppliersIndex({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {suppliers.length === 0 ? (
+                                    {supplierControls.total === 0 ? (
                                         <tr>
                                             <td
                                                 colSpan={8}
@@ -362,8 +407,17 @@ export default function SuppliersIndex({
                                                 No suppliers yet. Use the form on the left to add your first partner.
                                             </td>
                                         </tr>
+                                    ) : supplierControls.filteredTotal === 0 ? (
+                                        <tr>
+                                            <td
+                                                colSpan={8}
+                                                className="px-3 py-6 text-center text-sm text-muted-foreground"
+                                            >
+                                                Tidak ada pemasok yang cocok dengan pencarian atau filter yang diterapkan.
+                                            </td>
+                                        </tr>
                                     ) : (
-                                        suppliers.map((supplier) => (
+                                        supplierControls.items.map((supplier) => (
                                             <tr key={supplier.id} className="border-b border-muted/50 last:border-b-0">
                                                 <td className="px-3 py-3">
                                                     <div className="flex flex-col gap-0.5">
@@ -570,6 +624,15 @@ export default function SuppliersIndex({
                                 </tbody>
                             </table>
                         </div>
+
+                        <TablePagination
+                            page={supplierControls.page}
+                            pageCount={supplierControls.pageCount}
+                            onPageChange={supplierControls.goToPage}
+                            range={supplierControls.range}
+                            total={supplierControls.total}
+                            filteredTotal={supplierControls.filteredTotal}
+                        />
                     </section>
                 </div>
             </div>

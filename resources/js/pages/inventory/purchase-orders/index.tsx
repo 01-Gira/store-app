@@ -1,3 +1,4 @@
+import { TablePagination, TableToolbar } from '@/components/table-controls';
 import InputError from '@/components/input-error';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +21,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { useTableControls } from '@/hooks/use-table-controls';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, useForm, usePage } from '@inertiajs/react';
@@ -95,6 +97,264 @@ interface PurchaseOrdersPageProps {
     suggestions: SuggestionGroup[];
     inventoryLocations: InventoryLocationSummary[];
     defaultReorderPoint: number;
+}
+
+interface ReceiveItemRow {
+    id: number;
+    quantity_received: string;
+    lot_number: string;
+    expires_at: string;
+    originalIndex: number;
+    productName: string;
+    productBarcode: string;
+    lotPlaceholder?: string;
+}
+
+function PurchaseOrderItemsTable({
+    items,
+    formatCurrency,
+}: {
+    items: PurchaseOrderItemSummary[];
+    formatCurrency: (value: string | number) => string;
+}) {
+    const controls = useTableControls(items, {
+        searchFields: [
+            (item) => item.product.name,
+            (item) => item.product.barcode,
+            (item) => item.notes ?? '',
+        ],
+        filters: [
+            { label: 'Semua baris', value: 'all' },
+            {
+                label: 'Sudah diterima',
+                value: 'fulfilled',
+                predicate: (item) => item.is_fulfilled,
+            },
+            {
+                label: 'Menunggu penerimaan',
+                value: 'pending',
+                predicate: (item) => !item.is_fulfilled,
+            },
+        ],
+        initialPageSize: 5,
+    });
+
+    return (
+        <div className="space-y-4">
+            <TableToolbar
+                searchTerm={controls.searchTerm}
+                onSearchChange={controls.setSearchTerm}
+                searchPlaceholder="Cari produk atau barcode"
+                filterOptions={controls.filterOptions}
+                filterValue={controls.filterValue}
+                onFilterChange={controls.setFilterValue}
+                pageSize={controls.pageSize}
+                pageSizeOptions={controls.pageSizeOptions}
+                onPageSizeChange={controls.setPageSize}
+                total={controls.total}
+                filteredTotal={controls.filteredTotal}
+            />
+
+            <div className="overflow-x-auto">
+                <table className="w-full min-w-[520px] text-sm">
+                    <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                        <tr>
+                            <th className="px-3 py-2">Product</th>
+                            <th className="px-3 py-2 text-right">Ordered</th>
+                            <th className="px-3 py-2 text-right">Received</th>
+                            <th className="px-3 py-2 text-right">Unit cost</th>
+                            <th className="px-3 py-2">Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {controls.total === 0 ? (
+                            <tr>
+                                <td colSpan={5} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                                    Tidak ada item pada purchase order ini.
+                                </td>
+                            </tr>
+                        ) : controls.filteredTotal === 0 ? (
+                            <tr>
+                                <td colSpan={5} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                                    Tidak ada baris yang cocok dengan pencarian atau filter.
+                                </td>
+                            </tr>
+                        ) : (
+                            controls.items.map((item) => (
+                                <tr key={item.id} className="border-b border-muted/40 last:border-b-0">
+                                    <td className="px-3 py-2">
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="font-medium">{item.product.name}</span>
+                                            <span className="text-xs text-muted-foreground">{item.product.barcode}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-3 py-2 text-right">{item.quantity_ordered}</td>
+                                    <td className="px-3 py-2 text-right">
+                                        <span
+                                            className={
+                                                item.is_fulfilled
+                                                    ? 'text-green-600 dark:text-green-400'
+                                                    : 'text-muted-foreground'
+                                            }
+                                        >
+                                            {item.quantity_received}
+                                        </span>
+                                    </td>
+                                    <td className="px-3 py-2 text-right">
+                                        {item.unit_cost !== null ? formatCurrency(item.unit_cost) : '—'}
+                                    </td>
+                                    <td className="px-3 py-2 text-sm text-muted-foreground">
+                                        {item.notes ?? '—'}
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+
+            <TablePagination
+                page={controls.page}
+                pageCount={controls.pageCount}
+                onPageChange={controls.goToPage}
+                range={controls.range}
+                total={controls.total}
+                filteredTotal={controls.filteredTotal}
+            />
+        </div>
+    );
+}
+
+function ReceiveItemsTable({
+    rows,
+    onQuantityChange,
+    onLotNumberChange,
+    onExpiresAtChange,
+    disabled,
+}: {
+    rows: ReceiveItemRow[];
+    onQuantityChange: (index: number, value: string) => void;
+    onLotNumberChange: (index: number, value: string) => void;
+    onExpiresAtChange: (index: number, value: string) => void;
+    disabled?: boolean;
+}) {
+    const controls = useTableControls(rows, {
+        searchFields: [
+            (row) => row.productName,
+            (row) => row.productBarcode,
+            (row) => row.lot_number,
+        ],
+        filters: [
+            { label: 'Semua item', value: 'all' },
+            {
+                label: 'Dengan jumlah diterima',
+                value: 'with-qty',
+                predicate: (row) => Number.parseFloat(row.quantity_received) > 0,
+            },
+            {
+                label: 'Belum diisi jumlah',
+                value: 'without-qty',
+                predicate: (row) => !row.quantity_received || Number.parseFloat(row.quantity_received) <= 0,
+            },
+            {
+                label: 'Dengan lot number',
+                value: 'with-lot',
+                predicate: (row) => row.lot_number.trim().length > 0,
+            },
+        ],
+        initialPageSize: 5,
+    });
+
+    return (
+        <div className="space-y-4">
+            <TableToolbar
+                searchTerm={controls.searchTerm}
+                onSearchChange={controls.setSearchTerm}
+                searchPlaceholder="Cari produk atau lot number"
+                filterOptions={controls.filterOptions}
+                filterValue={controls.filterValue}
+                onFilterChange={controls.setFilterValue}
+                pageSize={controls.pageSize}
+                pageSizeOptions={controls.pageSizeOptions}
+                onPageSizeChange={controls.setPageSize}
+                total={controls.total}
+                filteredTotal={controls.filteredTotal}
+            />
+
+            <div className="overflow-x-auto">
+                <table className="w-full min-w-[520px] text-sm">
+                    <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                        <tr>
+                            <th className="px-3 py-2">Product</th>
+                            <th className="px-3 py-2 text-right">Receive</th>
+                            <th className="px-3 py-2">Lot number</th>
+                            <th className="px-3 py-2">Expiry</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {controls.total === 0 ? (
+                            <tr>
+                                <td colSpan={4} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                                    Tidak ada item yang siap diterima.
+                                </td>
+                            </tr>
+                        ) : controls.filteredTotal === 0 ? (
+                            <tr>
+                                <td colSpan={4} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                                    Tidak ada baris yang cocok dengan pencarian atau filter.
+                                </td>
+                            </tr>
+                        ) : (
+                            controls.items.map((row) => (
+                                <tr key={row.id} className="border-b border-muted/40 last:border-b-0">
+                                    <td className="px-3 py-2">
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="font-medium">{row.productName}</span>
+                                            <span className="text-xs text-muted-foreground">{row.productBarcode}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-3 py-2 text-right">
+                                        <Input
+                                            type="number"
+                                            min={0}
+                                            value={row.quantity_received}
+                                            onChange={(event) => onQuantityChange(row.originalIndex, event.target.value)}
+                                            disabled={disabled}
+                                        />
+                                    </td>
+                                    <td className="px-3 py-2">
+                                        <Input
+                                            value={row.lot_number}
+                                            onChange={(event) => onLotNumberChange(row.originalIndex, event.target.value)}
+                                            placeholder={row.lotPlaceholder ?? 'Opsional'}
+                                            disabled={disabled}
+                                        />
+                                    </td>
+                                    <td className="px-3 py-2">
+                                        <Input
+                                            type="date"
+                                            value={row.expires_at}
+                                            onChange={(event) => onExpiresAtChange(row.originalIndex, event.target.value)}
+                                            disabled={disabled}
+                                        />
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+
+            <TablePagination
+                page={controls.page}
+                pageCount={controls.pageCount}
+                onPageChange={controls.goToPage}
+                range={controls.range}
+                total={controls.total}
+                filteredTotal={controls.filteredTotal}
+            />
+        </div>
+    );
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -311,6 +571,51 @@ export default function PurchaseOrdersIndex({
         receiveForm.clearErrors();
     };
 
+    const handleReceiveQuantityChange = (itemIndex: number, value: string) => {
+        receiveForm.setData((data) => {
+            const next = [...data.items];
+            next[itemIndex] = {
+                ...next[itemIndex],
+                quantity_received: value,
+            };
+
+            return {
+                ...data,
+                items: next,
+            };
+        });
+    };
+
+    const handleReceiveLotChange = (itemIndex: number, value: string) => {
+        receiveForm.setData((data) => {
+            const next = [...data.items];
+            next[itemIndex] = {
+                ...next[itemIndex],
+                lot_number: value,
+            };
+
+            return {
+                ...data,
+                items: next,
+            };
+        });
+    };
+
+    const handleReceiveExpiryChange = (itemIndex: number, value: string) => {
+        receiveForm.setData((data) => {
+            const next = [...data.items];
+            next[itemIndex] = {
+                ...next[itemIndex],
+                expires_at: value,
+            };
+
+            return {
+                ...data,
+                items: next,
+            };
+        });
+    };
+
     const handleReceiveSubmit = () => {
         if (!orderBeingReceived) {
             return;
@@ -504,11 +809,35 @@ export default function PurchaseOrdersIndex({
                                     <p>No purchase orders yet. Generate one from the suggestions panel.</p>
                                 </div>
                             ) : (
-                                purchaseOrders.map((order) => (
-                                    <div
-                                        key={order.id}
-                                        className="space-y-4 rounded-lg border border-border/80 bg-background/80 p-5 shadow-sm"
-                                    >
+                                purchaseOrders.map((order) => {
+                                    const receiveRows =
+                                        orderBeingReceived?.id === order.id
+                                            ? receiveForm.data.items.map((item, index) => ({
+                                                  id: item.id,
+                                                  quantity_received: item.quantity_received,
+                                                  lot_number: item.lot_number,
+                                                  expires_at: item.expires_at,
+                                                  originalIndex: index,
+                                                  productName: order.items[index]?.product.name ?? 'Product',
+                                                  productBarcode: order.items[index]?.product.barcode ?? '',
+                                                  lotPlaceholder: `${order.reference}-${item.id}`,
+                                              }))
+                                            : order.items.map((item, index) => ({
+                                                  id: item.id,
+                                                  quantity_received: '',
+                                                  lot_number: '',
+                                                  expires_at: '',
+                                                  originalIndex: index,
+                                                  productName: item.product.name,
+                                                  productBarcode: item.product.barcode,
+                                                  lotPlaceholder: `${order.reference}-${item.id}`,
+                                              }));
+
+                                    return (
+                                        <div
+                                            key={order.id}
+                                            className="space-y-4 rounded-lg border border-border/80 bg-background/80 p-5 shadow-sm"
+                                        >
                                         <div className="flex flex-wrap items-center justify-between gap-3">
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-3">
@@ -533,53 +862,10 @@ export default function PurchaseOrdersIndex({
                                             </div>
                                         </div>
 
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full min-w-[520px] text-sm">
-                                                <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                                                    <tr>
-                                                        <th className="px-3 py-2">Product</th>
-                                                        <th className="px-3 py-2 text-right">Ordered</th>
-                                                        <th className="px-3 py-2 text-right">Received</th>
-                                                        <th className="px-3 py-2 text-right">Unit cost</th>
-                                                        <th className="px-3 py-2">Notes</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {order.items.map((item) => (
-                                                        <tr key={item.id} className="border-b border-muted/40 last:border-b-0">
-                                                            <td className="px-3 py-2">
-                                                                <div className="flex flex-col gap-0.5">
-                                                                    <span className="font-medium">{item.product.name}</span>
-                                                                    <span className="text-xs text-muted-foreground">
-                                                                        {item.product.barcode}
-                                                                    </span>
-                                                                </div>
-                                                            </td>
-                                                            <td className="px-3 py-2 text-right">{item.quantity_ordered}</td>
-                                                            <td className="px-3 py-2 text-right">
-                                                                <span
-                                                                    className={
-                                                                        item.is_fulfilled
-                                                                            ? 'text-green-600 dark:text-green-400'
-                                                                            : 'text-muted-foreground'
-                                                                    }
-                                                                >
-                                                                    {item.quantity_received}
-                                                                </span>
-                                                            </td>
-                                                            <td className="px-3 py-2 text-right">
-                                                                {item.unit_cost !== null
-                                                                    ? formatCurrency(item.unit_cost)
-                                                                    : '—'}
-                                                            </td>
-                                                            <td className="px-3 py-2 text-sm text-muted-foreground">
-                                                                {item.notes ?? '—'}
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
+                                        <PurchaseOrderItemsTable
+                                            items={order.items}
+                                            formatCurrency={formatCurrency}
+                                        />
 
                                         <div className="flex flex-wrap items-center justify-between gap-3">
                                             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -649,88 +935,13 @@ export default function PurchaseOrdersIndex({
                                                                     <InputError message={receiveForm.errors.location_id} />
                                                                 </div>
 
-                                                                <div className="overflow-x-auto">
-                                                                    <table className="w-full min-w-[520px] text-sm">
-                                                                        <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                                                                            <tr>
-                                                                                <th className="px-3 py-2">Product</th>
-                                                                                <th className="px-3 py-2 text-right">Receive</th>
-                                                                                <th className="px-3 py-2">Lot number</th>
-                                                                                <th className="px-3 py-2">Expiry</th>
-                                                                            </tr>
-                                                                        </thead>
-                                                                        <tbody>
-                                                                            {receiveForm.data.items.map((item, index) => (
-                                                                                <tr key={item.id} className="border-b border-muted/40 last:border-b-0">
-                                                                                    <td className="px-3 py-2">
-                                                                                        {order.items[index]?.product.name ?? 'Product'}
-                                                                                    </td>
-                                                                                    <td className="px-3 py-2 text-right">
-                                                                                        <Input
-                                                                                            type="number"
-                                                                                            min={0}
-                                                                                            value={item.quantity_received}
-                                                                                            onChange={(event) => {
-                                                                                                const value = event.target.value;
-                                                                                                receiveForm.setData((data) => {
-                                                                                                    const next = [...data.items];
-                                                                                                    next[index] = {
-                                                                                                        ...next[index],
-                                                                                                        quantity_received: value,
-                                                                                                    };
-                                                                                                    return {
-                                                                                                        ...data,
-                                                                                                        items: next,
-                                                                                                    };
-                                                                                                });
-                                                                                            }}
-                                                                                        />
-                                                                                    </td>
-                                                                                    <td className="px-3 py-2">
-                                                                                        <Input
-                                                                                            value={item.lot_number}
-                                                                                            onChange={(event) => {
-                                                                                                const value = event.target.value;
-                                                                                                receiveForm.setData((data) => {
-                                                                                                    const next = [...data.items];
-                                                                                                    next[index] = {
-                                                                                                        ...next[index],
-                                                                                                        lot_number: value,
-                                                                                                    };
-                                                                                                    return {
-                                                                                                        ...data,
-                                                                                                        items: next,
-                                                                                                    };
-                                                                                                });
-                                                                                            }}
-                                                                                            placeholder={`${order.reference}-${item.id}`}
-                                                                                        />
-                                                                                    </td>
-                                                                                    <td className="px-3 py-2">
-                                                                                        <Input
-                                                                                            type="date"
-                                                                                            value={item.expires_at}
-                                                                                            onChange={(event) => {
-                                                                                                const value = event.target.value;
-                                                                                                receiveForm.setData((data) => {
-                                                                                                    const next = [...data.items];
-                                                                                                    next[index] = {
-                                                                                                        ...next[index],
-                                                                                                        expires_at: value,
-                                                                                                    };
-                                                                                                    return {
-                                                                                                        ...data,
-                                                                                                        items: next,
-                                                                                                    };
-                                                                                                });
-                                                                                            }}
-                                                                                        />
-                                                                                    </td>
-                                                                                </tr>
-                                                                            ))}
-                                                                        </tbody>
-                                                                    </table>
-                                                                </div>
+                                                                <ReceiveItemsTable
+                                                                    rows={receiveRows}
+                                                                    onQuantityChange={handleReceiveQuantityChange}
+                                                                    onLotNumberChange={handleReceiveLotChange}
+                                                                    onExpiresAtChange={handleReceiveExpiryChange}
+                                                                    disabled={receiveForm.processing}
+                                                                />
 
                                                                 {receiveFormItemError && (
                                                                     <InputError message={receiveFormItemError} />
@@ -767,7 +978,8 @@ export default function PurchaseOrdersIndex({
                                             </div>
                                         </div>
                                     </div>
-                                ))
+                                );
+                            })
                             )}
                         </div>
                     </section>
