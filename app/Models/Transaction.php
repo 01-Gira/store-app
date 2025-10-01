@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -42,5 +44,21 @@ class Transaction extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function scopeWithinPeriod(Builder $query, CarbonInterface $start, CarbonInterface $end): Builder
+    {
+        return $query->whereBetween('created_at', [$start, $end]);
+    }
+
+    public function scopeDailyBreakdown(Builder $query): Builder
+    {
+        return $query
+            ->selectRaw('DATE(created_at) as date')
+            ->selectRaw('SUM(total) as revenue')
+            ->selectRaw('COUNT(*) as transactions')
+            ->selectRaw('SUM(items_count) as items')
+            ->groupByRaw('DATE(created_at)')
+            ->orderBy('date');
     }
 }
