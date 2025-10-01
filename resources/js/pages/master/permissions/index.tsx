@@ -1,4 +1,5 @@
 import InputError from '@/components/input-error';
+import { TablePagination, TableToolbar } from '@/components/table-controls';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
+import { useTableControls } from '@/hooks/use-table-controls';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { type FormEvent, useEffect, useState } from 'react';
@@ -60,6 +62,24 @@ export default function PermissionsIndex({ permissions }: PermissionsPageProps) 
             clearEditErrors();
         }
     }, [clearEditErrors, isEditOpen, permissionBeingEdited, resetEditForm, setEditData]);
+
+    const permissionControls = useTableControls(permissions, {
+        searchFields: [(permission) => permission.name],
+        filters: [
+            { label: 'All permissions', value: 'all' },
+            {
+                label: 'Protected',
+                value: 'protected',
+                predicate: (permission) => permission.is_protected,
+            },
+            {
+                label: 'Unused',
+                value: 'unused',
+                predicate: (permission) => permission.roles_count === 0,
+            },
+        ],
+        initialPageSize: 10,
+    });
 
     const handleCreateSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -165,113 +185,149 @@ export default function PermissionsIndex({ permissions }: PermissionsPageProps) 
                                 </p>
                             </div>
                             <span className="text-sm text-muted-foreground">
-                                {permissions.length} permission{permissions.length === 1 ? '' : 's'}
+                                {permissionControls.total} permission{permissionControls.total === 1 ? '' : 's'}
                             </span>
                         </header>
 
-                        {permissions.length === 0 ? (
-                            <p className="rounded-lg border border-dashed border-sidebar-border/70 p-6 text-sm text-muted-foreground text-center dark:border-sidebar-border">
-                                No permissions created yet.
-                            </p>
-                        ) : (
-                            <div className="space-y-4">
-                                {permissions.map((permission) => (
-                                    <article
-                                        key={permission.id}
-                                        className="flex flex-col gap-4 rounded-lg border border-sidebar-border/60 bg-background p-4 shadow-sm transition hover:border-sidebar-border dark:border-sidebar-border sm:flex-row sm:items-center sm:justify-between"
-                                    >
-                                        <div className="space-y-2">
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="text-base font-semibold leading-tight">
-                                                    {permission.name}
-                                                </h3>
-                                                {permission.is_protected && (
-                                                    <Badge variant="secondary" className="uppercase">
-                                                        Protected
-                                                    </Badge>
-                                                )}
-                                            </div>
-                                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                                {permission.roles_count} role{permission.roles_count === 1 ? '' : 's'} using this permission
-                                            </p>
-                                        </div>
+                        <TableToolbar
+                            searchTerm={permissionControls.searchTerm}
+                            onSearchChange={permissionControls.setSearchTerm}
+                            searchPlaceholder="Search by permission name"
+                            filterOptions={permissionControls.filterOptions}
+                            filterValue={permissionControls.filterValue}
+                            onFilterChange={permissionControls.setFilterValue}
+                            pageSize={permissionControls.pageSize}
+                            pageSizeOptions={permissionControls.pageSizeOptions}
+                            onPageSizeChange={permissionControls.setPageSize}
+                            total={permissionControls.total}
+                            filteredTotal={permissionControls.filteredTotal}
+                        />
 
-                                        <div className="flex items-center gap-2">
-                                            <Dialog
-                                                open={isEditOpen && permissionBeingEdited?.id === permission.id}
-                                                onOpenChange={(open) => {
-                                                    setIsEditOpen(open);
-                                                    if (open) {
-                                                        setPermissionBeingEdited(permission);
-                                                    }
-                                                }}
-                                            >
-                                                <DialogTrigger asChild>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => {
-                                                            setPermissionBeingEdited(permission);
-                                                            setIsEditOpen(true);
-                                                        }}
-                                                    >
-                                                        <Pencil className="mr-2 h-4 w-4" />
-                                                        Edit
-                                                    </Button>
-                                                </DialogTrigger>
-                                                <DialogContent>
-                                                    <DialogHeader>
-                                                        <DialogTitle>Edit permission</DialogTitle>
-                                                        <DialogDescription>
-                                                            Update the permission name. Changes are applied immediately.
-                                                        </DialogDescription>
-                                                    </DialogHeader>
-
-                                                    <form onSubmit={handleEditSubmit} className="space-y-4">
-                                                        <div className="space-y-2">
-                                                            <label className="text-sm font-medium" htmlFor="edit-permission-name">
-                                                                Permission name
-                                                            </label>
-                                                            <Input
-                                                                id="edit-permission-name"
-                                                                value={editForm.data.name}
-                                                                onChange={(event) =>
-                                                                    editForm.setData('name', event.target.value)
-                                                                }
-                                                            />
-                                                            <InputError message={editForm.errors.name} />
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[640px] text-sm">
+                                <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                                    <tr>
+                                        <th className="px-3 py-2">Permission</th>
+                                        <th className="px-3 py-2 text-right">Roles using</th>
+                                        <th className="px-3 py-2 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {permissionControls.total === 0 ? (
+                                        <tr>
+                                            <td colSpan={3} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                                                No permissions created yet.
+                                            </td>
+                                        </tr>
+                                    ) : permissionControls.filteredTotal === 0 ? (
+                                        <tr>
+                                            <td colSpan={3} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                                                No permissions match the applied search or filters.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        permissionControls.items.map((permission) => (
+                                            <tr key={permission.id} className="border-b border-muted/50 last:border-b-0">
+                                                <td className="px-3 py-3 align-top">
+                                                    <div className="flex flex-col gap-1">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <span className="font-medium">{permission.name}</span>
+                                                            {permission.is_protected && (
+                                                                <Badge variant="secondary" className="uppercase">
+                                                                    Protected
+                                                                </Badge>
+                                                            )}
                                                         </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-3 py-3 text-right align-top">
+                                                    {permission.roles_count.toLocaleString()}
+                                                </td>
+                                                <td className="px-3 py-3">
+                                                    <div className="flex justify-end gap-2">
+                                                        <Dialog
+                                                            open={isEditOpen && permissionBeingEdited?.id === permission.id}
+                                                            onOpenChange={(open) => {
+                                                                setIsEditOpen(open);
+                                                                if (open) {
+                                                                    setPermissionBeingEdited(permission);
+                                                                }
+                                                            }}
+                                                        >
+                                                            <DialogTrigger asChild>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => {
+                                                                        setPermissionBeingEdited(permission);
+                                                                        setIsEditOpen(true);
+                                                                    }}
+                                                                >
+                                                                    <Pencil className="mr-2 h-4 w-4" />
+                                                                    Edit
+                                                                </Button>
+                                                            </DialogTrigger>
+                                                            <DialogContent>
+                                                                <DialogHeader>
+                                                                    <DialogTitle>Edit permission</DialogTitle>
+                                                                    <DialogDescription>
+                                                                        Update the permission name. Changes are applied immediately.
+                                                                    </DialogDescription>
+                                                                </DialogHeader>
 
-                                                        <DialogFooter>
-                                                            <Button
-                                                                type="button"
-                                                                variant="secondary"
-                                                                onClick={() => setIsEditOpen(false)}
-                                                            >
-                                                                Cancel
-                                                            </Button>
-                                                            <Button type="submit" disabled={editForm.processing}>
-                                                                Save changes
-                                                            </Button>
-                                                        </DialogFooter>
-                                                    </form>
-                                                </DialogContent>
-                                            </Dialog>
+                                                                <form onSubmit={handleEditSubmit} className="space-y-4">
+                                                                    <div className="space-y-2">
+                                                                        <label className="text-sm font-medium" htmlFor="edit-permission-name">
+                                                                            Permission name
+                                                                        </label>
+                                                                        <Input
+                                                                            id="edit-permission-name"
+                                                                            value={editForm.data.name}
+                                                                            onChange={(event) =>
+                                                                                editForm.setData('name', event.target.value)
+                                                                            }
+                                                                        />
+                                                                        <InputError message={editForm.errors.name} />
+                                                                    </div>
 
-                                            <Button
-                                                size="sm"
-                                                variant="destructive"
-                                                onClick={() => handleDelete(permission)}
-                                                disabled={permission.is_protected || deleteForm.processing}
-                                            >
-                                                <Trash2 className="mr-2 h-4 w-4" />
-                                                Delete
-                                            </Button>
-                                        </div>
-                                    </article>
-                                ))}
-                            </div>
-                        )}
+                                                                    <DialogFooter>
+                                                                        <Button type="button" variant="secondary" onClick={() => setIsEditOpen(false)}>
+                                                                            Cancel
+                                                                        </Button>
+                                                                        <Button type="submit" disabled={editForm.processing}>
+                                                                            Save changes
+                                                                        </Button>
+                                                                    </DialogFooter>
+                                                                </form>
+                                                            </DialogContent>
+                                                        </Dialog>
+
+                                                        <Button
+                                                            size="sm"
+                                                            variant="destructive"
+                                                            onClick={() => handleDelete(permission)}
+                                                            disabled={permission.is_protected || deleteForm.processing}
+                                                        >
+                                                            <Trash2 className="mr-2 h-4 w-4" />
+                                                            Delete
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <TablePagination
+                            page={permissionControls.page}
+                            pageCount={permissionControls.pageCount}
+                            onPageChange={permissionControls.goToPage}
+                            range={permissionControls.range}
+                            total={permissionControls.total}
+                            filteredTotal={permissionControls.filteredTotal}
+                        />
                     </section>
                 </div>
             </div>
