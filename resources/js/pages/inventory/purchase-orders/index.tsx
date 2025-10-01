@@ -364,20 +364,6 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-const formatCurrency = (value: string | number): string => {
-    const numeric = typeof value === 'string' ? Number.parseFloat(value) : value;
-
-    if (Number.isNaN(numeric)) {
-        return '0.00';
-    }
-
-    return new Intl.NumberFormat(undefined, {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 2,
-    }).format(numeric);
-};
-
 const statusVariant = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
     switch (status) {
         case 'ordered':
@@ -393,26 +379,55 @@ const statusVariant = (status: string): 'default' | 'secondary' | 'destructive' 
     }
 };
 
-const formatDateTime = (value: string | null): string => {
-    if (!value) {
-        return '—';
-    }
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        return '—';
-    }
-
-    return date.toLocaleString();
-};
-
 export default function PurchaseOrdersIndex({
     purchaseOrders,
     suggestions,
     inventoryLocations,
 }: PurchaseOrdersPageProps) {
-    const { flash } = usePage<SharedData>().props;
+    const { flash, storeSettings } = usePage<SharedData>().props;
+    const locale = storeSettings?.language_code ?? 'id-ID';
+    const currencyCode = storeSettings?.currency_code ?? 'IDR';
+    const timezone = storeSettings?.timezone ?? 'Asia/Jakarta';
+    const currencyFormatter = useMemo(
+        () =>
+            new Intl.NumberFormat(locale, {
+                style: 'currency',
+                currency: currencyCode,
+                minimumFractionDigits: 2,
+            }),
+        [currencyCode, locale],
+    );
+    const dateTimeFormatter = useMemo(
+        () =>
+            new Intl.DateTimeFormat(locale, {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+                timeZone: timezone,
+            }),
+        [locale, timezone],
+    );
+    const formatCurrency = (value: string | number): string => {
+        const numeric = typeof value === 'string' ? Number.parseFloat(value) : value;
+
+        if (Number.isNaN(numeric)) {
+            return currencyFormatter.format(0);
+        }
+
+        return currencyFormatter.format(numeric);
+    };
+    const formatDateTime = (value: string | null): string => {
+        if (!value) {
+            return '—';
+        }
+
+        const date = new Date(value);
+
+        if (Number.isNaN(date.getTime())) {
+            return '—';
+        }
+
+        return dateTimeFormatter.format(date);
+    };
     const [orderBeingReceived, setOrderBeingReceived] = useState<PurchaseOrderSummary | null>(
         null,
     );

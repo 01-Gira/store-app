@@ -40,6 +40,10 @@ test('store managers can update branding settings with a logo', function () {
             'store_name' => 'Sunrise Mart',
             'contact_details' => "Jl. Contoh No. 1\nJakarta",
             'receipt_footer_text' => 'Terima kasih atas kunjungan Anda',
+            'currency_code' => 'USD',
+            'currency_symbol' => '$',
+            'language_code' => 'en-US',
+            'timezone' => 'America/New_York',
             'logo' => $logo,
         ]);
 
@@ -52,6 +56,10 @@ test('store managers can update branding settings with a logo', function () {
         ->and($settings->store_name)->toBe('Sunrise Mart')
         ->and($settings->contact_details)->toBe("Jl. Contoh No. 1\nJakarta")
         ->and($settings->receipt_footer_text)->toBe('Terima kasih atas kunjungan Anda')
+        ->and($settings->currency_code)->toBe('USD')
+        ->and($settings->currency_symbol)->toBe('$')
+        ->and($settings->language_code)->toBe('en-US')
+        ->and($settings->timezone)->toBe('America/New_York')
         ->and($settings->logo_path)->not()->toBeNull();
 
     Storage::disk('public')->assertExists($settings->logo_path);
@@ -78,6 +86,10 @@ test('store logo can be removed without uploading a replacement', function () {
             'store_name' => 'Sunrise Mart',
             'contact_details' => null,
             'receipt_footer_text' => null,
+            'currency_code' => 'IDR',
+            'currency_symbol' => 'Rp',
+            'language_code' => 'id-ID',
+            'timezone' => 'Asia/Jakarta',
             'remove_logo' => true,
         ]);
 

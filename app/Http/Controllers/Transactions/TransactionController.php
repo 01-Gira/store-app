@@ -57,6 +57,8 @@ class TransactionController extends Controller
             'max_total' => 'maximum total',
         ]);
 
+        $settings = StoreSetting::current();
+
         $filters = [
             'start_date' => $validated['start_date'] ?? null,
             'end_date' => $validated['end_date'] ?? null,
@@ -168,6 +170,7 @@ class TransactionController extends Controller
             'customers' => $customers,
             'historyUrl' => route('transactions.history'),
             'employeeUrl' => route('transactions.employee'),
+            'branding' => $this->transformBranding($settings),
         ]);
     }
 
@@ -400,6 +403,10 @@ class TransactionController extends Controller
             'store_name' => $settings->store_name,
             'contact_details' => $settings->contact_details,
             'receipt_footer_text' => $settings->receipt_footer_text,
+            'currency_code' => $settings->currency_code,
+            'currency_symbol' => $settings->currency_symbol,
+            'language_code' => $settings->language_code,
+            'timezone' => $settings->timezone,
             'logo_url' => $settings->logo_path
                 ? Storage::disk('public')->url($settings->logo_path)
                 : null,

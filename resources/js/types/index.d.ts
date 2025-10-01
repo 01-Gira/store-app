@@ -33,6 +33,12 @@ export interface SharedData {
         success?: string;
         error?: string;
     };
+    storeSettings?: {
+        currency_code: string;
+        currency_symbol: string;
+        language_code: string;
+        timezone: string;
+    };
     [key: string]: unknown;
 }
 

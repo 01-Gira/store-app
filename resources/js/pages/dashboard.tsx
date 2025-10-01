@@ -4,8 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useTableControls } from '@/hooks/use-table-controls';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
-import { type BreadcrumbItem } from '@/types';
-import { Head } from '@inertiajs/react';
+import { type BreadcrumbItem, type SharedData } from '@/types';
+import { Head, usePage } from '@inertiajs/react';
 import {
     AlertTriangle,
     BarChart3,
@@ -33,6 +33,7 @@ import {
     type ChartOptions,
 } from 'chart.js';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import { useMemo } from 'react';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler);
 
@@ -146,6 +147,9 @@ interface DashboardMetrics {
         projectedTax30: number;
     };
     currency: string;
+    currency_symbol?: string;
+    locale?: string;
+    timezone?: string;
     lastUpdated: string;
     range: {
         start: string;
@@ -165,9 +169,6 @@ const breadcrumbs: BreadcrumbItem[] = [
         href: dashboard().url,
     },
 ];
-
-const formatDate = (value: string, options?: Intl.DateTimeFormatOptions) =>
-    new Intl.DateTimeFormat('id-ID', options ?? { dateStyle: 'medium' }).format(new Date(value));
 
 const buildSparklinePoints = (values: number[]) => {
     if (values.length === 0) {
@@ -192,25 +193,58 @@ const buildSparklinePoints = (values: number[]) => {
 };
 
 export default function Dashboard({ metrics }: DashboardPageProps) {
+    const { storeSettings } = usePage<SharedData>().props;
+    const locale = metrics.locale ?? storeSettings?.language_code ?? 'id-ID';
+    const currencyCode = metrics.currency ?? storeSettings?.currency_code ?? 'IDR';
+    const timezone = metrics.timezone ?? storeSettings?.timezone ?? 'Asia/Jakarta';
+    const currencyFormatter = useMemo(
+        () =>
+            new Intl.NumberFormat(locale, {
+                style: 'currency',
+                currency: currencyCode,
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2,
+            }),
+        [currencyCode, locale],
+    );
+    const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
+    const decimalFormatter = useMemo(
+        () =>
+            new Intl.NumberFormat(locale, {
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+            }),
+        [locale],
+    );
+    const percentFormatter = useMemo(
+        () =>
+            new Intl.NumberFormat(locale, {
+                style: 'percent',
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+            }),
+        [locale],
+    );
+    const defaultDateFormatter = useMemo(
+        () =>
+            new Intl.DateTimeFormat(locale, {
+                dateStyle: 'medium',
+                timeZone: timezone,
+            }),
+        [locale, timezone],
+    );
+    const formatCurrency = (value: number) => currencyFormatter.format(value);
+    const formatNumber = (value: number) => numberFormatter.format(value);
+    const formatDecimal = (value: number) => decimalFormatter.format(value);
+    const formatPercent = (value: number) => percentFormatter.format(value);
+    const formatDate = (value: string, options?: Intl.DateTimeFormatOptions) => {
+        if (options) {
+            return new Intl.DateTimeFormat(locale, { timeZone: timezone, ...options }).format(new Date(value));
+        }
+
+        return defaultDateFormatter.format(new Date(value));
+    };
     const dailySales = metrics.dailySales;
-    const formatCurrency = (value: number) =>
-        new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: metrics.currency ?? 'IDR',
-            minimumFractionDigits: 0,
-        }).format(value);
-    const formatNumber = (value: number) => new Intl.NumberFormat('id-ID').format(value);
-    const formatDecimal = (value: number) =>
-        new Intl.NumberFormat('id-ID', {
-            minimumFractionDigits: 1,
-            maximumFractionDigits: 1,
-        }).format(value);
-    const formatPercent = (value: number) =>
-        new Intl.NumberFormat('id-ID', {
-            style: 'percent',
-            minimumFractionDigits: 1,
-            maximumFractionDigits: 1,
-        }).format(value);
 
     const ensureNumber = (value: number | string) => (typeof value === 'string' ? Number(value) : value);
     const hasDailySales = dailySales.length > 0;

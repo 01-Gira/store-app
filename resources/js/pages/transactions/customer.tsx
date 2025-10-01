@@ -3,8 +3,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useTableControls } from '@/hooks/use-table-controls';
 import CustomerLayout from '@/layouts/customer-layout';
-import { Head, router } from '@inertiajs/react';
-import { useEffect, useRef, useState } from 'react';
+import { type SharedData } from '@/types';
+import { Head, router, usePage } from '@inertiajs/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCcw } from 'lucide-react';
 
 interface TransactionItemSummary {
@@ -45,6 +46,10 @@ interface BrandingInfo {
     contact_details: string | null;
     receipt_footer_text: string | null;
     logo_url: string | null;
+    currency_code: string;
+    currency_symbol: string;
+    language_code: string;
+    timezone: string;
 }
 
 interface CustomerDisplayProps {
@@ -54,30 +59,44 @@ interface CustomerDisplayProps {
     branding: BrandingInfo;
 }
 
-const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        minimumFractionDigits: 2,
-    }).format(value);
-
-const formatDate = (value: string | null) => {
-    if (!value) {
-        return '';
-    }
-
-    return new Intl.DateTimeFormat('id-ID', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    }).format(new Date(value));
-};
-
 export default function CustomerDisplay({
     transaction,
     autoRefresh,
     latestUrl,
     branding,
 }: CustomerDisplayProps) {
+    const { storeSettings } = usePage<SharedData>().props;
+    const locale = branding.language_code ?? storeSettings?.language_code ?? 'id-ID';
+    const currencyCode = branding.currency_code ?? storeSettings?.currency_code ?? 'IDR';
+    const timezone = branding.timezone ?? storeSettings?.timezone ?? 'Asia/Jakarta';
+    const currencyFormatter = useMemo(
+        () =>
+            new Intl.NumberFormat(locale, {
+                style: 'currency',
+                currency: currencyCode,
+                minimumFractionDigits: 2,
+            }),
+        [currencyCode, locale],
+    );
+    const dateFormatter = useMemo(
+        () =>
+            new Intl.DateTimeFormat(locale, {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+                timeZone: timezone,
+            }),
+        [locale, timezone],
+    );
+    const numberLocale = locale;
+
+    const formatCurrency = (value: number) => currencyFormatter.format(value);
+    const formatDate = (value: string | null) => {
+        if (!value) {
+            return '';
+        }
+
+        return dateFormatter.format(new Date(value));
+    };
     const [shouldAutoPrint, setShouldAutoPrint] = useState(false);
     const hasPrintedRef = useRef(false);
 
@@ -355,7 +374,7 @@ export default function CustomerDisplay({
                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                         <dt className="text-muted-foreground">Poin</dt>
                                         <dd className="font-medium text-foreground">
-                                            {transaction.customer.loyalty_points.toLocaleString('id-ID')}
+                                            {transaction.customer.loyalty_points.toLocaleString(numberLocale)}
                                         </dd>
                                     </div>
                                 </dl>

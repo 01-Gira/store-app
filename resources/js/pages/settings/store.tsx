@@ -16,6 +16,10 @@ interface StoreSettingsPageProps {
         store_name?: string | null;
         contact_details?: string | null;
         receipt_footer_text?: string | null;
+        currency_code?: string | null;
+        currency_symbol?: string | null;
+        language_code?: string | null;
+        timezone?: string | null;
         logo_url?: string | null;
         updated_at?: string | null;
     };
@@ -35,6 +39,10 @@ export default function StoreSettings({ settings }: StoreSettingsPageProps) {
         store_name: settings?.store_name ?? '',
         contact_details: settings?.contact_details ?? '',
         receipt_footer_text: settings?.receipt_footer_text ?? '',
+        currency_code: settings?.currency_code ?? 'IDR',
+        currency_symbol: settings?.currency_symbol ?? 'Rp',
+        language_code: settings?.language_code ?? 'id-ID',
+        timezone: settings?.timezone ?? 'Asia/Jakarta',
         logo_url: settings?.logo_url ?? null,
         updated_at: settings?.updated_at ?? null,
     };
@@ -43,6 +51,10 @@ export default function StoreSettings({ settings }: StoreSettingsPageProps) {
         store_name: string;
         contact_details: string;
         receipt_footer_text: string;
+        currency_code: string;
+        currency_symbol: string;
+        language_code: string;
+        timezone: string;
         logo: File | null;
         remove_logo: boolean;
     }>({
@@ -50,6 +62,10 @@ export default function StoreSettings({ settings }: StoreSettingsPageProps) {
         store_name: normalizedSettings.store_name,
         contact_details: normalizedSettings.contact_details,
         receipt_footer_text: normalizedSettings.receipt_footer_text,
+        currency_code: normalizedSettings.currency_code,
+        currency_symbol: normalizedSettings.currency_symbol,
+        language_code: normalizedSettings.language_code,
+        timezone: normalizedSettings.timezone,
         logo: null,
         remove_logo: false,
     });
@@ -154,6 +170,65 @@ export default function StoreSettings({ settings }: StoreSettingsPageProps) {
                                     className="min-h-[96px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2"
                                 />
                                 <InputError message={form.errors.receipt_footer_text} />
+                            </div>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="currency_code">Currency code</Label>
+                                <Input
+                                    id="currency_code"
+                                    name="currency_code"
+                                    value={form.data.currency_code}
+                                    onChange={(event) =>
+                                        form.setData('currency_code', event.target.value.toUpperCase())
+                                    }
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Use the three-letter ISO 4217 currency code (for example, IDR, USD).
+                                </p>
+                                <InputError message={form.errors.currency_code} />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="currency_symbol">Currency symbol</Label>
+                                <Input
+                                    id="currency_symbol"
+                                    name="currency_symbol"
+                                    value={form.data.currency_symbol}
+                                    onChange={(event) => form.setData('currency_symbol', event.target.value)}
+                                />
+                                <InputError message={form.errors.currency_symbol} />
+                            </div>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="language_code">Language</Label>
+                                <Input
+                                    id="language_code"
+                                    name="language_code"
+                                    value={form.data.language_code}
+                                    onChange={(event) => form.setData('language_code', event.target.value)}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Provide an IETF language tag such as <code>id-ID</code> or <code>en-US</code>.
+                                </p>
+                                <InputError message={form.errors.language_code} />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="timezone">Timezone</Label>
+                                <Input
+                                    id="timezone"
+                                    name="timezone"
+                                    value={form.data.timezone}
+                                    onChange={(event) => form.setData('timezone', event.target.value)}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Enter an IANA timezone identifier such as <code>Asia/Jakarta</code>.
+                                </p>
+                                <InputError message={form.errors.timezone} />
                             </div>
                         </div>
 
