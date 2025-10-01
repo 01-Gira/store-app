@@ -17,6 +17,22 @@ import {
     TrendingUp,
     Truck,
 } from 'lucide-react';
+import {
+    Chart as ChartJS,
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    BarElement,
+    ArcElement,
+    Tooltip,
+    Legend,
+    Filler,
+    type ChartOptions,
+} from 'chart.js';
+import { Line, Bar, Doughnut } from 'react-chartjs-2';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler);
 
 interface DailySalesSnapshot {
     date: string;
@@ -175,7 +191,6 @@ const buildSparklinePoints = (values: number[]) => {
 
 export default function Dashboard({ metrics }: DashboardPageProps) {
     const dailySales = metrics.dailySales;
-    const revenueMax = dailySales.reduce((max, day) => Math.max(max, day.revenue), 0);
     const formatCurrency = (value: number) =>
         new Intl.NumberFormat('id-ID', {
             style: 'currency',
@@ -183,12 +198,190 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
             minimumFractionDigits: 0,
         }).format(value);
     const formatNumber = (value: number) => new Intl.NumberFormat('id-ID').format(value);
+    const formatDecimal = (value: number) =>
+        new Intl.NumberFormat('id-ID', {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1,
+        }).format(value);
     const formatPercent = (value: number) =>
         new Intl.NumberFormat('id-ID', {
             style: 'percent',
             minimumFractionDigits: 1,
             maximumFractionDigits: 1,
         }).format(value);
+
+    const ensureNumber = (value: number | string) => (typeof value === 'string' ? Number(value) : value);
+    const hasDailySales = dailySales.length > 0;
+    const chartLabels = dailySales.map((day) => formatDate(day.date, { day: 'numeric', month: 'short' }));
+
+    const revenueTrendData = {
+        labels: chartLabels,
+        datasets: [
+            {
+                label: 'Pendapatan',
+                data: dailySales.map((day) => day.revenue),
+                borderColor: 'rgb(99, 102, 241)',
+                backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                tension: 0.35,
+                fill: true,
+            },
+            {
+                label: 'Laba',
+                data: dailySales.map((day) => day.profit),
+                borderColor: 'rgb(16, 185, 129)',
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                tension: 0.35,
+                fill: true,
+            },
+        ],
+    };
+
+    const revenueTrendOptions: ChartOptions<'line'> = {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+            intersect: false,
+            mode: 'index',
+        },
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: {
+                    usePointStyle: true,
+                },
+            },
+            tooltip: {
+                callbacks: {
+                    label: (context) => {
+                        const value = context.parsed.y ?? 0;
+                        const label = context.dataset.label ?? '';
+
+                        return `${label}: ${formatCurrency(value)}`;
+                    },
+                },
+            },
+        },
+        scales: {
+            x: {
+                grid: {
+                    display: false,
+                },
+            },
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    callback: (value) => formatCurrency(ensureNumber(value)),
+                },
+            },
+        },
+    };
+
+    const transactionsBarData = {
+        labels: chartLabels,
+        datasets: [
+            {
+                label: 'Transaksi',
+                data: dailySales.map((day) => day.transactions),
+                backgroundColor: 'rgba(59, 130, 246, 0.85)',
+                borderRadius: 6,
+                maxBarThickness: 28,
+            },
+            {
+                label: 'Item Terjual',
+                data: dailySales.map((day) => day.items),
+                backgroundColor: 'rgba(234, 179, 8, 0.85)',
+                borderRadius: 6,
+                maxBarThickness: 28,
+            },
+        ],
+    };
+
+    const transactionsBarOptions: ChartOptions<'bar'> = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: {
+                    usePointStyle: true,
+                },
+            },
+            tooltip: {
+                callbacks: {
+                    label: (context) => {
+                        const value = context.parsed.y ?? 0;
+                        const label = context.dataset.label ?? '';
+
+                        return `${label}: ${formatNumber(value)}`;
+                    },
+                },
+            },
+        },
+        scales: {
+            x: {
+                grid: {
+                    display: false,
+                },
+            },
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    callback: (value) => formatNumber(ensureNumber(value)),
+                },
+            },
+        },
+    };
+
+    const revenueBreakdownData = {
+        labels: ['Laba Kotor', 'PPN Dikumpulkan', 'Biaya Barang'],
+        datasets: [
+            {
+                label: 'Nilai',
+                data: [
+                    metrics.totals.grossProfit,
+                    metrics.totals.taxCollected,
+                    metrics.totals.totalCost,
+                ],
+                backgroundColor: [
+                    'rgba(16, 185, 129, 0.85)',
+                    'rgba(249, 115, 22, 0.85)',
+                    'rgba(59, 130, 246, 0.85)',
+                ],
+                borderWidth: 0,
+                hoverOffset: 8,
+            },
+        ],
+    };
+
+    const revenueBreakdownOptions: ChartOptions<'doughnut'> = {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '60%',
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: {
+                    usePointStyle: true,
+                },
+            },
+            tooltip: {
+                callbacks: {
+                    label: (context) => {
+                        const label = context.label ?? '';
+                        const value = typeof context.parsed === 'number' ? context.parsed : 0;
+
+                        return `${label}: ${formatCurrency(value)}`;
+                    },
+                },
+            },
+        },
+    };
+
+    const revenueBreakdownTotal =
+        ((revenueBreakdownData.datasets[0]?.data as number[] | undefined)?.reduce(
+            (sum, value) => sum + value,
+            0,
+        ) ?? 0);
 
     const supplierMetrics = metrics.suppliers;
     const supplierSummary = supplierMetrics.summary;
@@ -223,8 +416,12 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
 
     const totalDailyRevenue = dailySales.reduce((sum, day) => sum + day.revenue, 0);
     const totalDailyProfit = dailySales.reduce((sum, day) => sum + day.profit, 0);
-    const averageDailyRevenue = dailySales.length > 0 ? totalDailyRevenue / dailySales.length : 0;
-    const averageDailyProfit = dailySales.length > 0 ? totalDailyProfit / dailySales.length : 0;
+    const totalDailyTransactions = dailySales.reduce((sum, day) => sum + day.transactions, 0);
+    const totalDailyItems = dailySales.reduce((sum, day) => sum + day.items, 0);
+    const averageDailyRevenue = hasDailySales ? totalDailyRevenue / dailySales.length : 0;
+    const averageDailyProfit = hasDailySales ? totalDailyProfit / dailySales.length : 0;
+    const averageDailyTransactions = hasDailySales ? totalDailyTransactions / dailySales.length : 0;
+    const averageDailyItems = hasDailySales ? totalDailyItems / dailySales.length : 0;
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -545,6 +742,93 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
                     </Card>
                 </section>
 
+                <section className="grid gap-4 xl:grid-cols-3">
+                    <Card className="xl:col-span-2">
+                        <CardHeader>
+                            <CardTitle>Tren Pendapatan &amp; Laba</CardTitle>
+                            <CardDescription>
+                                Visualisasi kinerja harian selama periode {periodLabel}
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {hasDailySales ? (
+                                <div className="space-y-4">
+                                    <div className="h-80">
+                                        <Line data={revenueTrendData} options={revenueTrendOptions} />
+                                    </div>
+                                    <div className="grid gap-4 text-sm text-muted-foreground sm:grid-cols-2">
+                                        <div>
+                                            <p className="text-xs uppercase tracking-wide">Rata-rata pendapatan</p>
+                                            <p className="text-lg font-semibold text-foreground">
+                                                {formatCurrency(averageDailyRevenue)}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs uppercase tracking-wide">Rata-rata laba</p>
+                                            <p className="text-lg font-semibold text-foreground">
+                                                {formatCurrency(averageDailyProfit)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">
+                                    Data harian belum tersedia untuk menampilkan grafik.
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Komposisi Pendapatan</CardTitle>
+                            <CardDescription>Porsi laba, pajak, dan biaya terhadap pendapatan</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {revenueBreakdownTotal > 0 ? (
+                                <>
+                                    <div className="h-80">
+                                        <Doughnut
+                                            data={revenueBreakdownData}
+                                            options={revenueBreakdownOptions}
+                                        />
+                                    </div>
+                                    <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+                                        <div className="flex items-center justify-between">
+                                            <span>Pendapatan total</span>
+                                            <span className="font-medium text-foreground">
+                                                {formatCurrency(metrics.totals.revenue)}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <span>Laba kotor</span>
+                                            <span className="font-medium text-foreground">
+                                                {formatCurrency(metrics.totals.grossProfit)}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <span>PPN dikumpulkan</span>
+                                            <span className="font-medium text-foreground">
+                                                {formatCurrency(metrics.totals.taxCollected)}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <span>Biaya barang</span>
+                                            <span className="font-medium text-foreground">
+                                                {formatCurrency(metrics.totals.totalCost)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">
+                                    Belum ada data pendapatan untuk menampilkan komposisi.
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
+                </section>
+
                 <section className="grid gap-4 lg:grid-cols-3">
                     <Card className="lg:col-span-2">
                         <CardHeader>
@@ -697,64 +981,37 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
                 <section className="grid gap-4 lg:grid-cols-3">
                     <Card className="lg:col-span-2">
                         <CardHeader>
-                            <CardTitle>Tren Penjualan Harian</CardTitle>
-                            <CardDescription>Performa pendapatan untuk periode {periodLabel}</CardDescription>
+                            <CardTitle>Aktivitas Transaksi Harian</CardTitle>
+                            <CardDescription>Perbandingan transaksi dan item terjual setiap hari</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            {dailySales.length > 0 ? (
+                            {hasDailySales ? (
                                 <div className="space-y-6">
-                                    <div className="flex h-56 items-end gap-3">
-                                        {dailySales.map((day) => {
-                                            const height = revenueMax > 0 ? (day.revenue / revenueMax) * 100 : 0;
-                                            return (
-                                                <div
-                                                    key={day.date}
-                                                    className="flex w-full flex-col items-center justify-end gap-2 text-center"
-                                                >
-                                                    <div className="flex h-full w-full items-end rounded-md bg-muted">
-                                                        <div
-                                                            className="w-full rounded-md rounded-b-none bg-primary/80"
-                                                            style={{ height: `${height}%` }}
-                                                        />
-                                                    </div>
-                                                    <div className="text-xs font-medium text-muted-foreground">
-                                                        {formatDate(day.date, { month: 'short', day: 'numeric' })}
-                                                    </div>
-                                                    <div className="text-xs text-foreground">
-                                                        {formatCurrency(day.revenue)}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                                    <div className="h-72">
+                                        <Bar data={transactionsBarData} options={transactionsBarOptions} />
                                     </div>
                                     <div className="grid gap-3 sm:grid-cols-4">
                                         <div>
                                             <p className="text-sm font-medium text-muted-foreground">Pendapatan rata-rata</p>
-                                            <p className="text-lg font-semibold">
-                                                {formatCurrency(dailySales.length > 0 ? averageDailyRevenue : 0)}
+                                            <p className="text-lg font-semibold text-foreground">
+                                                {formatCurrency(averageDailyRevenue)}
                                             </p>
                                         </div>
                                         <div>
                                             <p className="text-sm font-medium text-muted-foreground">Transaksi harian</p>
-                                            <p className="text-lg font-semibold">
-                                                {(
-                                                    dailySales.reduce((sum, day) => sum + day.transactions, 0) /
-                                                    dailySales.length
-                                                ).toFixed(1)}
+                                            <p className="text-lg font-semibold text-foreground">
+                                                {formatDecimal(averageDailyTransactions)}
                                             </p>
                                         </div>
                                         <div>
                                             <p className="text-sm font-medium text-muted-foreground">Item terjual harian</p>
-                                            <p className="text-lg font-semibold">
-                                                {(
-                                                    dailySales.reduce((sum, day) => sum + day.items, 0) /
-                                                    dailySales.length
-                                                ).toFixed(1)}
+                                            <p className="text-lg font-semibold text-foreground">
+                                                {formatDecimal(averageDailyItems)}
                                             </p>
                                         </div>
                                         <div>
                                             <p className="text-sm font-medium text-muted-foreground">Laba kotor harian</p>
-                                            <p className="text-lg font-semibold">
+                                            <p className="text-lg font-semibold text-foreground">
                                                 {formatCurrency(averageDailyProfit)}
                                             </p>
                                         </div>
