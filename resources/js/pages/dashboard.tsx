@@ -5,13 +5,17 @@ import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/react';
 import {
+    AlertTriangle,
     BarChart3,
     CalendarClock,
+    ClipboardList,
     Coins,
     PackageOpen,
     ReceiptPercent,
     ShoppingBag,
+    Timer,
     TrendingUp,
+    Truck,
 } from 'lucide-react';
 
 interface DailySalesSnapshot {
@@ -31,6 +35,55 @@ interface TopSellingItem {
     cost: number;
     profit: number;
     profitMargin: number;
+}
+
+interface SupplierSummary {
+    suppliersEvaluated: number;
+    averageLeadTime: number | null;
+    averageFulfillmentRate: number | null;
+    onTimeRate: number | null;
+    lateDeliveryCount: number;
+    outstandingCount: number;
+}
+
+interface SupplierPerformance {
+    supplierId: number | null;
+    supplierName: string | undefined;
+    orders: number;
+    completedOrders: number;
+    onTimeRate: number | null;
+    averageLeadTime: number | null;
+    averageVariance: number | null;
+    fulfillmentRate: number | null;
+    lateDeliveries: number;
+    score: number;
+}
+
+interface SupplierLateDelivery {
+    id: number;
+    reference: string;
+    supplierName?: string;
+    expectedDate: string | null;
+    receivedAt: string | null;
+    varianceDays: number | null;
+    fulfillmentRate: number | null;
+}
+
+interface SupplierOutstandingOrder {
+    id: number;
+    reference: string;
+    supplierName?: string;
+    expectedDate: string | null;
+    outstandingQuantity: number;
+    fulfillmentRate: number | null;
+    status: string;
+}
+
+interface SupplierMetrics {
+    summary: SupplierSummary;
+    topSuppliers: SupplierPerformance[];
+    lateDeliveries: SupplierLateDelivery[];
+    outstandingOrders: SupplierOutstandingOrder[];
 }
 
 interface DashboardMetrics {
@@ -81,6 +134,7 @@ interface DashboardMetrics {
         end: string;
         days: number;
     };
+    suppliers: SupplierMetrics;
 }
 
 interface DashboardPageProps {
@@ -135,6 +189,23 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
             minimumFractionDigits: 1,
             maximumFractionDigits: 1,
         }).format(value);
+
+    const supplierMetrics = metrics.suppliers;
+    const supplierSummary = supplierMetrics.summary;
+    const formatOptionalPercent = (value: number | null) =>
+        value === null ? '—' : formatPercent(value);
+    const formatOptionalDays = (value: number | null) =>
+        value === null ? '—' : `${value.toFixed(1)} hari`;
+    const formatVariance = (value: number | null) => {
+        if (value === null) {
+            return '—';
+        }
+
+        const prefix = value > 0 ? '+' : '';
+
+        return `${prefix}${value.toFixed(1)} hari`;
+    };
+    const supplierIssueCount = supplierSummary.lateDeliveryCount + supplierSummary.outstandingCount;
 
     const periodLabel =
         metrics.range.start === metrics.range.end
@@ -270,6 +341,85 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
                     </Card>
                 </section>
 
+                <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <Card>
+                        <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                            <div>
+                                <CardTitle className="text-sm font-medium">Rata-rata Lead Time Pemasok</CardTitle>
+                                <CardDescription>
+                                    {formatNumber(supplierSummary.suppliersEvaluated)} pemasok dievaluasi
+                                </CardDescription>
+                            </div>
+                            <div className="rounded-full bg-primary/10 p-2 text-primary">
+                                <Timer className="h-5 w-5" />
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-3xl font-semibold tracking-tight">
+                                {formatOptionalDays(supplierSummary.averageLeadTime)}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">Berbasis pesanan yang telah diterima</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                            <div>
+                                <CardTitle className="text-sm font-medium">Ketepatan Pengiriman</CardTitle>
+                                <CardDescription>Persentase pesanan tiba tepat waktu</CardDescription>
+                            </div>
+                            <div className="rounded-full bg-emerald-500/10 p-2 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300">
+                                <Truck className="h-5 w-5" />
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-3xl font-semibold tracking-tight">
+                                {formatOptionalPercent(supplierSummary.onTimeRate)}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">Pembaharuan {lastUpdatedLabel}</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                            <div>
+                                <CardTitle className="text-sm font-medium">Tingkat Pemenuhan</CardTitle>
+                                <CardDescription>Rata-rata kuantitas diterima</CardDescription>
+                            </div>
+                            <div className="rounded-full bg-sky-500/10 p-2 text-sky-600 dark:bg-sky-500/20 dark:text-sky-200">
+                                <ClipboardList className="h-5 w-5" />
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-3xl font-semibold tracking-tight">
+                                {formatOptionalPercent(supplierSummary.averageFulfillmentRate)}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">Mengukur kuantitas diterima vs dipesan</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                            <div>
+                                <CardTitle className="text-sm font-medium">Pesanan Bermasalah</CardTitle>
+                                <CardDescription>Pesanan terlambat atau outstanding</CardDescription>
+                            </div>
+                            <div className="rounded-full bg-destructive/10 p-2 text-destructive">
+                                <AlertTriangle className="h-5 w-5" />
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-3xl font-semibold tracking-tight">
+                                {formatNumber(supplierIssueCount)}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                {formatNumber(supplierSummary.lateDeliveryCount)} terlambat •{' '}
+                                {formatNumber(supplierSummary.outstandingCount)} outstanding
+                            </p>
+                        </CardContent>
+                    </Card>
+                </section>
+
                 <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     <Card>
                         <CardHeader className="flex flex-row items-start justify-between space-y-0">
@@ -391,6 +541,155 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
                                     </span>
                                 </div>
                             </div>
+                        </CardContent>
+                    </Card>
+                </section>
+
+                <section className="grid gap-4 lg:grid-cols-3">
+                    <Card className="lg:col-span-2">
+                        <CardHeader>
+                            <CardTitle>Pemasok Berkinerja Terbaik</CardTitle>
+                            <CardDescription>Diurutkan dari skor gabungan ketepatan dan pemenuhan</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {supplierMetrics.topSuppliers.length > 0 ? (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full min-w-[480px] text-sm">
+                                        <thead className="text-xs uppercase text-muted-foreground">
+                                            <tr>
+                                                <th className="px-2 py-2 text-left font-medium">Pemasok</th>
+                                                <th className="px-2 py-2 text-right font-medium">Pesanan</th>
+                                                <th className="px-2 py-2 text-right font-medium">Tepat Waktu</th>
+                                                <th className="px-2 py-2 text-right font-medium">Pemenuhan</th>
+                                                <th className="px-2 py-2 text-right font-medium">Lead Time</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {supplierMetrics.topSuppliers.map((supplier, index) => (
+                                                <tr
+                                                    key={`${supplier.supplierId ?? 'unknown'}-${index}`}
+                                                    className={index % 2 === 1 ? 'bg-muted/40' : undefined}
+                                                >
+                                                    <td className="px-2 py-2 align-top">
+                                                        <div className="flex flex-col">
+                                                            <span className="font-medium text-foreground">
+                                                                {supplier.supplierName ?? 'Tidak diketahui'}
+                                                            </span>
+                                                            <span className="text-xs text-muted-foreground">
+                                                                {formatNumber(supplier.completedOrders)} selesai •{' '}
+                                                                {formatNumber(supplier.lateDeliveries)} terlambat
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-2 py-2 text-right font-medium text-foreground">
+                                                        {formatNumber(supplier.orders)}
+                                                    </td>
+                                                    <td className="px-2 py-2 text-right">
+                                                        {formatOptionalPercent(supplier.onTimeRate)}
+                                                    </td>
+                                                    <td className="px-2 py-2 text-right">
+                                                        {formatOptionalPercent(supplier.fulfillmentRate)}
+                                                    </td>
+                                                    <td className="px-2 py-2 text-right">
+                                                        {formatOptionalDays(supplier.averageLeadTime)}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">
+                                    Belum ada data pemasok yang tersedia untuk periode ini.
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Pengiriman Terlambat</CardTitle>
+                            <CardDescription>Variansi dibanding tanggal yang diharapkan</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {supplierMetrics.lateDeliveries.length > 0 ? (
+                                <ul className="space-y-3">
+                                    {supplierMetrics.lateDeliveries.map((delivery) => (
+                                        <li key={delivery.id} className="rounded-lg border p-3">
+                                            <div className="flex items-center justify-between gap-2 text-sm font-medium">
+                                                <span className="truncate">{delivery.reference}</span>
+                                                <span className="text-xs text-destructive">
+                                                    {formatVariance(delivery.varianceDays)}
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground">
+                                                {delivery.supplierName ?? 'Pemasok tidak diketahui'}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                                Estimasi {delivery.expectedDate ? formatDate(delivery.expectedDate) : '—'}
+                                                {delivery.receivedAt && (
+                                                    <>
+                                                        {' '}
+                                                        • diterima {formatDate(delivery.receivedAt)}
+                                                    </>
+                                                )}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                                Pemenuhan {formatOptionalPercent(delivery.fulfillmentRate)}
+                                            </p>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">
+                                    Tidak ada pengiriman terlambat pada periode ini.
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
+                </section>
+
+                <section className="grid gap-4 lg:grid-cols-3">
+                    <Card className="lg:col-span-3">
+                        <CardHeader>
+                            <CardTitle>Pesanan Outstanding</CardTitle>
+                            <CardDescription>Pesanan yang belum terpenuhi sepenuhnya</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {supplierMetrics.outstandingOrders.length > 0 ? (
+                                <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                    {supplierMetrics.outstandingOrders.map((order) => (
+                                        <li key={order.id} className="rounded-lg border p-3">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div>
+                                                    <p className="text-sm font-semibold leading-tight text-foreground">
+                                                        {order.reference}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {order.supplierName ?? 'Pemasok tidak diketahui'}
+                                                    </p>
+                                                </div>
+                                                <Badge variant="secondary" className="uppercase">
+                                                    {order.status}
+                                                </Badge>
+                                            </div>
+                                            <p className="mt-2 text-xs text-muted-foreground">
+                                                Outstanding {formatNumber(order.outstandingQuantity)} unit
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                                Pemenuhan {formatOptionalPercent(order.fulfillmentRate)}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                                Estimasi {order.expectedDate ? formatDate(order.expectedDate) : '—'}
+                                            </p>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">
+                                    Semua pesanan pemasok telah terpenuhi.
+                                </p>
+                            )}
                         </CardContent>
                     </Card>
                 </section>

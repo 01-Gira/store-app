@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\Commands\CheckLowStockCommand;
+use App\Console\Commands\WarmDashboardMetricsCommand;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
@@ -12,6 +13,7 @@ use Illuminate\Console\Scheduling\Schedule;
 return Application::configure(basePath: dirname(__DIR__))
     ->withCommands([
         CheckLowStockCommand::class,
+        WarmDashboardMetricsCommand::class,
     ])
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
@@ -29,6 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withSchedule(function (Schedule $schedule): void {
         $schedule->command('inventory:check-low-stock')->dailyAt('08:00');
+        $schedule->command('dashboard:warm')->dailyAt('02:00');
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
