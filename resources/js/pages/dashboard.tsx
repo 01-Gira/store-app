@@ -4,7 +4,15 @@ import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/react';
-import { BarChart3, PackageOpen, ShoppingBag, TrendingUp } from 'lucide-react';
+import {
+    BarChart3,
+    CalendarClock,
+    Coins,
+    PackageOpen,
+    ReceiptPercent,
+    ShoppingBag,
+    TrendingUp,
+} from 'lucide-react';
 
 interface DailySalesSnapshot {
     date: string;
@@ -12,12 +20,17 @@ interface DailySalesSnapshot {
     transactions: number;
     items: number;
     averageBasketSize: number;
+    cost: number;
+    profit: number;
 }
 
 interface TopSellingItem {
     name: string;
     quantity: number;
     revenue: number;
+    cost: number;
+    profit: number;
+    profitMargin: number;
 }
 
 interface DashboardMetrics {
@@ -27,6 +40,10 @@ interface DashboardMetrics {
         itemsSold: number;
         averageBasketSize: number;
         lowStockCount: number;
+        totalCost: number;
+        grossProfit: number;
+        grossMargin: number;
+        taxCollected: number;
     };
     dailySales: DailySalesSnapshot[];
     topSelling: TopSellingItem[];
@@ -40,6 +57,23 @@ interface DashboardMetrics {
         effectiveReorderPoint: number;
         reorderQuantity: number | null;
     }[];
+    taxSummary: {
+        taxableSales: number;
+        taxCollected: number;
+        discounts: number;
+        effectiveTaxRate: number;
+        transactionsWithTax: number;
+        averageTaxPerTransaction: number;
+    };
+    forecast: {
+        daysEvaluated: number;
+        averageDailyRevenue: number;
+        averageDailyProfit: number;
+        averageDailyTax: number;
+        projectedRevenue30: number;
+        projectedProfit30: number;
+        projectedTax30: number;
+    };
     currency: string;
     lastUpdated: string;
     range: {
@@ -95,6 +129,12 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
             minimumFractionDigits: 0,
         }).format(value);
     const formatNumber = (value: number) => new Intl.NumberFormat('id-ID').format(value);
+    const formatPercent = (value: number) =>
+        new Intl.NumberFormat('id-ID', {
+            style: 'percent',
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1,
+        }).format(value);
 
     const periodLabel =
         metrics.range.start === metrics.range.end
@@ -109,6 +149,11 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
     const averagePoints = buildSparklinePoints(
         dailySales.map((day) => Number.isFinite(day.averageBasketSize) ? day.averageBasketSize : 0),
     );
+
+    const totalDailyRevenue = dailySales.reduce((sum, day) => sum + day.revenue, 0);
+    const totalDailyProfit = dailySales.reduce((sum, day) => sum + day.profit, 0);
+    const averageDailyRevenue = dailySales.length > 0 ? totalDailyRevenue / dailySales.length : 0;
+    const averageDailyProfit = dailySales.length > 0 ? totalDailyProfit / dailySales.length : 0;
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -225,6 +270,131 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
                     </Card>
                 </section>
 
+                <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    <Card>
+                        <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                            <div>
+                                <CardTitle className="text-sm font-medium">Laba Kotor</CardTitle>
+                                <CardDescription>Perbandingan pendapatan dan biaya barang</CardDescription>
+                            </div>
+                            <div className="rounded-full bg-emerald-500/10 p-2 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300">
+                                <Coins className="h-5 w-5" />
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-3xl font-semibold tracking-tight">
+                                {formatCurrency(metrics.totals.grossProfit)}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Margin {formatPercent(metrics.totals.grossMargin)}
+                            </p>
+                            <div className="mt-4 space-y-2 text-xs text-muted-foreground">
+                                <div className="flex items-center justify-between">
+                                    <span>Biaya barang</span>
+                                    <span className="font-medium text-foreground">
+                                        {formatCurrency(metrics.totals.totalCost)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span>PPN dikumpulkan</span>
+                                    <span className="font-medium text-foreground">
+                                        {formatCurrency(metrics.totals.taxCollected)}
+                                    </span>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                            <div>
+                                <CardTitle className="text-sm font-medium">Ringkasan Pajak</CardTitle>
+                                <CardDescription>Periode {periodLabel}</CardDescription>
+                            </div>
+                            <div className="rounded-full bg-amber-500/10 p-2 text-amber-600 dark:bg-amber-500/20 dark:text-amber-200">
+                                <ReceiptPercent className="h-5 w-5" />
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-3xl font-semibold tracking-tight">
+                                {formatCurrency(metrics.taxSummary.taxCollected)}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Tarif efektif {formatPercent(metrics.taxSummary.effectiveTaxRate)}
+                            </p>
+                            <div className="mt-4 space-y-2 text-xs text-muted-foreground">
+                                <div className="flex items-center justify-between">
+                                    <span>Penjualan kena pajak</span>
+                                    <span className="font-medium text-foreground">
+                                        {formatCurrency(metrics.taxSummary.taxableSales)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span>Transaksi kena pajak</span>
+                                    <span className="font-medium text-foreground">
+                                        {formatNumber(metrics.taxSummary.transactionsWithTax)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span>PPN rata-rata / transaksi</span>
+                                    <span className="font-medium text-foreground">
+                                        {formatCurrency(metrics.taxSummary.averageTaxPerTransaction)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span>Diskon diterapkan</span>
+                                    <span className="font-medium text-foreground">
+                                        {formatCurrency(metrics.taxSummary.discounts)}
+                                    </span>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                            <div>
+                                <CardTitle className="text-sm font-medium">Proyeksi 30 Hari</CardTitle>
+                                <CardDescription>Berbasis pada {metrics.forecast.daysEvaluated} hari terakhir</CardDescription>
+                            </div>
+                            <div className="rounded-full bg-sky-500/10 p-2 text-sky-600 dark:bg-sky-500/20 dark:text-sky-200">
+                                <CalendarClock className="h-5 w-5" />
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-3xl font-semibold tracking-tight">
+                                {formatCurrency(metrics.forecast.projectedRevenue30)}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Laba diproyeksikan {formatCurrency(metrics.forecast.projectedProfit30)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                PPN diproyeksikan {formatCurrency(metrics.forecast.projectedTax30)}
+                            </p>
+                            <div className="mt-4 space-y-2 text-xs text-muted-foreground">
+                                <div className="flex items-center justify-between">
+                                    <span>Pendapatan harian</span>
+                                    <span className="font-medium text-foreground">
+                                        {formatCurrency(metrics.forecast.averageDailyRevenue)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span>Laba harian</span>
+                                    <span className="font-medium text-foreground">
+                                        {formatCurrency(metrics.forecast.averageDailyProfit)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span>PPN harian</span>
+                                    <span className="font-medium text-foreground">
+                                        {formatCurrency(metrics.forecast.averageDailyTax)}
+                                    </span>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </section>
+
                 <section className="grid gap-4 lg:grid-cols-3">
                     <Card className="lg:col-span-2">
                         <CardHeader>
@@ -258,16 +428,11 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
                                             );
                                         })}
                                     </div>
-                                    <div className="grid gap-3 sm:grid-cols-3">
+                                    <div className="grid gap-3 sm:grid-cols-4">
                                         <div>
                                             <p className="text-sm font-medium text-muted-foreground">Pendapatan rata-rata</p>
                                             <p className="text-lg font-semibold">
-                                                {formatCurrency(
-                                                    revenueMax > 0
-                                                        ? dailySales.reduce((sum, day) => sum + day.revenue, 0) /
-                                                              dailySales.length
-                                                        : 0,
-                                                )}
+                                                {formatCurrency(dailySales.length > 0 ? averageDailyRevenue : 0)}
                                             </p>
                                         </div>
                                         <div>
@@ -286,6 +451,12 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
                                                     dailySales.reduce((sum, day) => sum + day.items, 0) /
                                                     dailySales.length
                                                 ).toFixed(1)}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium text-muted-foreground">Laba kotor harian</p>
+                                            <p className="text-lg font-semibold">
+                                                {formatCurrency(averageDailyProfit)}
                                             </p>
                                         </div>
                                     </div>
@@ -316,7 +487,9 @@ export default function Dashboard({ metrics }: DashboardPageProps) {
                                             </div>
                                             <div className="text-right">
                                                 <p className="text-sm font-semibold">{formatCurrency(item.revenue)}</p>
-                                                <p className="text-xs text-muted-foreground">Pendapatan</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Laba {formatCurrency(item.profit)} • {formatPercent(item.profitMargin)}
+                                                </p>
                                             </div>
                                         </li>
                                     ))}

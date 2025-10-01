@@ -21,9 +21,11 @@ class TransactionItem extends Model
         'name',
         'quantity',
         'unit_price',
+        'unit_cost',
         'tax_rate',
         'tax_amount',
         'line_total',
+        'line_cost',
     ];
 
     /**
@@ -32,9 +34,11 @@ class TransactionItem extends Model
     protected $casts = [
         'quantity' => 'integer',
         'unit_price' => 'decimal:2',
+        'unit_cost' => 'decimal:2',
         'tax_rate' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'line_total' => 'decimal:2',
+        'line_cost' => 'decimal:2',
     ];
 
     public function transaction(): BelongsTo
@@ -53,6 +57,7 @@ class TransactionItem extends Model
             ->select('product_id', 'name')
             ->selectRaw('SUM(quantity) as quantity')
             ->selectRaw('SUM(line_total) as revenue')
+            ->selectRaw('COALESCE(SUM(line_cost), 0) as cost')
             ->groupBy('product_id', 'name')
             ->orderByDesc('quantity')
             ->limit($limit);

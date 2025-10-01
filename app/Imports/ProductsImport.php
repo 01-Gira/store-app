@@ -37,6 +37,7 @@ class ProductsImport implements ToCollection, WithHeadingRow, SkipsEmptyRows
 
             $reorderPoint = $this->normalizeNullableInteger($row->get('reorder_point'));
             $reorderQuantity = $this->normalizeNullableInteger($row->get('reorder_quantity'));
+            $costPrice = $this->normalizeNullableDecimal($row->get('cost_price'));
 
             $imagePath = $row->get('image_path');
             $imagePath = is_string($imagePath) && Str::of($imagePath)->trim()->isNotEmpty()
@@ -49,6 +50,7 @@ class ProductsImport implements ToCollection, WithHeadingRow, SkipsEmptyRows
                     'name' => $name,
                     'stock' => max($stock, 0),
                     'price' => $price >= 0 ? $price : 0,
+                    'cost_price' => $costPrice,
                     'reorder_point' => $reorderPoint,
                     'reorder_quantity' => $reorderQuantity,
                     'image_path' => $imagePath,
@@ -101,6 +103,21 @@ class ProductsImport implements ToCollection, WithHeadingRow, SkipsEmptyRows
 
         if (is_numeric($value)) {
             return max(0, (int) $value);
+        }
+
+        return null;
+    }
+
+    private function normalizeNullableDecimal(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_numeric($value)) {
+            $number = (float) $value;
+
+            return $number >= 0 ? round($number, 2) : null;
         }
 
         return null;
