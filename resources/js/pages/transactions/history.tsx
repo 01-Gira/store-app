@@ -227,16 +227,19 @@ export default function TransactionHistory({
                                 <div className="space-y-2">
                                     <Label>Kasir</Label>
                                     <Select
-                                        value={form.data.cashier_id}
+                                        value={form.data.cashier_id || 'all'}
                                         onValueChange={(value) =>
-                                            form.setData('cashier_id', value)
+                                             form.setData(
+                                                'cashier_id',
+                                                value === 'all' ? '' : value,
+                                            )
                                         }
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="Semua kasir" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="">Semua kasir</SelectItem>
+                                            <SelectItem value="all">Semua kasir</SelectItem>
                                             {cashiers.map((cashier) => (
                                                 <SelectItem
                                                     key={cashier.id}

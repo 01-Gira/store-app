@@ -62,6 +62,11 @@ const mainNavItems: NavItem[] = [
         href: '/transactions/customer/latest',
         icon: MonitorPlay,
     },
+      {
+        title: 'Transaction History',
+        href: '/transactions/history',
+        icon: MonitorPlay,
+    },
 ];
 
 const footerNavItems: NavItem[] = [
