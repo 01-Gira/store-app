@@ -16,6 +16,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -36,6 +37,7 @@ class TransactionController extends Controller
             'customerLatestUrl' => route('transactions.customer.latest'),
             'customerSearchUrl' => route('transactions.customers.index'),
             'customerStoreUrl' => route('transactions.customers.store'),
+            'branding' => $this->transformBranding($settings),
         ]);
     }
 
@@ -312,11 +314,13 @@ class TransactionController extends Controller
     public function customer(Transaction $transaction): Response
     {
         $transaction->loadMissing(['items', 'user', 'customer']);
+        $settings = StoreSetting::current();
 
         return Inertia::render('transactions/customer', [
             'transaction' => $this->formatTransaction($transaction),
             'autoRefresh' => false,
             'latestUrl' => route('transactions.customer.latest'),
+            'branding' => $this->transformBranding($settings),
         ]);
     }
 
@@ -326,11 +330,13 @@ class TransactionController extends Controller
             ->latest()
             ->with(['items', 'user', 'customer'])
             ->first();
+        $settings = StoreSetting::current();
 
         return Inertia::render('transactions/customer', [
             'transaction' => $transaction ? $this->formatTransaction($transaction) : null,
             'autoRefresh' => true,
             'latestUrl' => route('transactions.customer.latest'),
+            'branding' => $this->transformBranding($settings),
         ]);
     }
 
@@ -386,6 +392,18 @@ class TransactionController extends Controller
         $prefix = 'TRX-' . now()->format('Ymd-His');
 
         return $prefix . '-' . Str::upper(Str::random(4));
+    }
+
+    protected function transformBranding(StoreSetting $settings): array
+    {
+        return [
+            'store_name' => $settings->store_name,
+            'contact_details' => $settings->contact_details,
+            'receipt_footer_text' => $settings->receipt_footer_text,
+            'logo_url' => $settings->logo_path
+                ? Storage::disk('public')->url($settings->logo_path)
+                : null,
+        ];
     }
 
     /**

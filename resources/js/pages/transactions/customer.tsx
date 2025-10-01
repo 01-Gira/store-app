@@ -38,10 +38,18 @@ interface TransactionSummary {
     items: TransactionItemSummary[];
 }
 
+interface BrandingInfo {
+    store_name: string | null;
+    contact_details: string | null;
+    receipt_footer_text: string | null;
+    logo_url: string | null;
+}
+
 interface CustomerDisplayProps {
     transaction: TransactionSummary | null;
     autoRefresh: boolean;
     latestUrl: string;
+    branding: BrandingInfo;
 }
 
 const formatCurrency = (value: number) =>
@@ -62,7 +70,12 @@ const formatDate = (value: string | null) => {
     }).format(new Date(value));
 };
 
-export default function CustomerDisplay({ transaction, autoRefresh, latestUrl }: CustomerDisplayProps) {
+export default function CustomerDisplay({
+    transaction,
+    autoRefresh,
+    latestUrl,
+    branding,
+}: CustomerDisplayProps) {
     const [shouldAutoPrint, setShouldAutoPrint] = useState(false);
     const hasPrintedRef = useRef(false);
 
@@ -121,11 +134,32 @@ export default function CustomerDisplay({ transaction, autoRefresh, latestUrl }:
             <Head title="Customer display" />
 
             <div className="space-y-6">
-                <header className="space-y-1 text-center">
-                    <h1 className="text-4xl font-bold tracking-tight">Terima kasih telah berbelanja</h1>
-                    <p className="text-lg text-muted-foreground">
-                        Harap pastikan semua item sudah sesuai sebelum melakukan pembayaran.
-                    </p>
+                <header className="space-y-3 text-center">
+                    {branding.logo_url && (
+                        <div className="flex justify-center">
+                            <img
+                                src={branding.logo_url}
+                                alt={`${branding.store_name ?? 'Store'} logo`}
+                                className="h-24 w-auto rounded-md border border-border bg-white p-3 shadow-sm"
+                            />
+                        </div>
+                    )}
+                    <h1 className="text-4xl font-bold tracking-tight">
+                        {branding.store_name ?? 'Terima kasih telah berbelanja'}
+                    </h1>
+                    <div className="space-y-1 text-lg text-muted-foreground">
+                        {branding.store_name && (
+                            <p>Terima kasih telah berbelanja bersama kami.</p>
+                        )}
+                        {branding.contact_details && (
+                            <p className="whitespace-pre-line text-base text-muted-foreground">
+                                {branding.contact_details}
+                            </p>
+                        )}
+                        <p className="text-base text-muted-foreground">
+                            Harap pastikan semua item sudah sesuai sebelum melakukan pembayaran.
+                        </p>
+                    </div>
                 </header>
 
                 {autoRefresh && (
@@ -143,9 +177,7 @@ export default function CustomerDisplay({ transaction, autoRefresh, latestUrl }:
                             <>
                                 <div>
                                     Nomor transaksi:{' '}
-                                    <span className="font-semibold text-foreground">
-                                        {transaction.number}
-                                    </span>
+                                    <span className="font-semibold text-foreground">{transaction.number}</span>
                                 </div>
                                 <div>Waktu: {formatDate(transaction.created_at)}</div>
                                 {transaction.user && <div>Kasir: {transaction.user.name}</div>}
@@ -269,6 +301,18 @@ export default function CustomerDisplay({ transaction, autoRefresh, latestUrl }:
                         </p>
                     </div>
                 )}
+
+                <footer className="rounded-xl border border-dashed border-border bg-background/70 p-6 text-center text-base text-muted-foreground">
+                    {branding.receipt_footer_text ? (
+                        <p className="whitespace-pre-line text-sm text-muted-foreground">
+                            {branding.receipt_footer_text}
+                        </p>
+                    ) : (
+                        <p className="text-sm text-muted-foreground">
+                            Simpan struk ini sebagai bukti pembayaran dan hubungi kasir bila ada pertanyaan.
+                        </p>
+                    )}
+                </footer>
             </div>
         </CustomerLayout>
     );

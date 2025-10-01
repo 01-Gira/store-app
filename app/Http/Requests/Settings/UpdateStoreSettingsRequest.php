@@ -23,6 +23,11 @@ class UpdateStoreSettingsRequest extends FormRequest
     {
         return [
             'ppn_rate' => ['required', 'numeric', 'between:0,100'],
+            'store_name' => ['required', 'string', 'max:255'],
+            'contact_details' => ['nullable', 'string', 'max:1000'],
+            'receipt_footer_text' => ['nullable', 'string', 'max:1000'],
+            'logo' => ['nullable', 'image', 'max:2048'],
+            'remove_logo' => ['sometimes', 'boolean'],
         ];
     }
 }
