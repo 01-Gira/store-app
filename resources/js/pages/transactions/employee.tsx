@@ -14,6 +14,7 @@ import { Head, useForm, usePage } from '@inertiajs/react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Minus, Plus, RefreshCcw, ScanLine, Trash2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface TransactionProduct {
     id: number;
@@ -63,6 +64,8 @@ const roundCurrency = (value: number) => Math.round(value * 100) / 100;
 
 type DiscountType = 'percentage' | 'value';
 type PaymentMethod = 'cash' | 'card' | 'bank_transfer' | 'e_wallet' | 'other';
+
+const DISCOUNT_PERCENT_PRESETS = [5, 10, 15];
 
 interface TransactionFormData {
     items: { product_id: number; quantity: number }[];
@@ -180,6 +183,11 @@ export default function EmployeeTransactions({
         };
     }, [items, ppnRate]);
 
+    const cartItemCount = useMemo(
+        () => items.reduce((count, item) => count + item.quantity, 0),
+        [items],
+    );
+
     const discountAmount = useMemo(() => {
         if (!discountType) {
             return 0;
@@ -216,6 +224,51 @@ export default function EmployeeTransactions({
         () => roundCurrency(Math.max(normalizedAmountPaid - amountDue, 0)),
         [normalizedAmountPaid, amountDue],
     );
+
+    const outstandingBalance = useMemo(
+        () => roundCurrency(Math.max(amountDue - normalizedAmountPaid, 0)),
+        [amountDue, normalizedAmountPaid],
+    );
+
+    const discountValuePresets = useMemo(() => {
+        if (totals.total <= 0) {
+            return [] as number[];
+        }
+
+        const fractions = [0.05, 0.1, 0.15];
+        const values = fractions
+            .map((fraction) => roundCurrency(totals.total * fraction))
+            .filter((value) => value > 0 && value < totals.total);
+
+        return Array.from(new Set(values));
+    }, [totals.total]);
+
+    const quickAmountPaidOptions = useMemo(() => {
+        if (amountDue <= 0) {
+            return [] as number[];
+        }
+
+        const base = roundCurrency(amountDue);
+        const exponent = Math.max(Math.floor(Math.log10(base || 1)) - 1, 0);
+        const step = Math.pow(10, exponent);
+        const steps = [step, step * 2, step * 5];
+        const values = new Set<number>([base]);
+
+        steps.forEach((currentStep) => {
+            if (currentStep <= 0) {
+                return;
+            }
+
+            const rounded = roundCurrency(
+                Math.ceil(base / currentStep) * currentStep,
+            );
+            values.add(rounded);
+        });
+
+        return Array.from(values)
+            .filter((value) => value > 0)
+            .sort((first, second) => first - second);
+    }, [amountDue]);
 
     const customerUrl =
         recentTransactionId != null
@@ -623,6 +676,34 @@ export default function EmployeeTransactions({
         form.setData('amount_paid', roundCurrency(parsed));
     };
 
+    const handleQuickAmountPaid = (value: number) => {
+        const rounded = roundCurrency(value);
+        setAmountPaidInput(rounded.toFixed(2));
+        form.setData('amount_paid', rounded);
+    };
+
+    const handleApplyPercentagePreset = (percentage: number) => {
+        setDiscountType('percentage');
+        setDiscountValueInput(percentage.toString());
+        form.setData('discount_type', 'percentage');
+        form.setData('discount_value', percentage);
+    };
+
+    const handleApplyValuePreset = (value: number) => {
+        const bounded = Math.min(value, totals.total);
+        setDiscountType('value');
+        setDiscountValueInput(bounded.toFixed(2));
+        form.setData('discount_type', 'value');
+        form.setData('discount_value', roundCurrency(bounded));
+    };
+
+    const handleClearDiscount = () => {
+        setDiscountType(null);
+        setDiscountValueInput('');
+        form.setData('discount_type', null);
+        form.setData('discount_value', null);
+    };
+
     const handleNotesChange = (value: string) => {
         setNotes(value);
         form.setData('notes', value);
@@ -684,6 +765,14 @@ export default function EmployeeTransactions({
             return;
         }
 
+        if (normalizedAmountPaid < amountDue) {
+            form.setError(
+                'amount_paid',
+                'Amount paid must be at least the total due.',
+            );
+            return;
+        }
+
         form.setData(
             'items',
             items.map((item) => ({
@@ -692,6 +781,7 @@ export default function EmployeeTransactions({
             })),
         );
         form.setData('customer_id', selectedCustomer ? selectedCustomer.id : null);
+        form.setData('amount_paid', normalizedAmountPaid);
 
         form.post(storeUrl, {
             preserveScroll: true,
@@ -977,6 +1067,12 @@ export default function EmployeeTransactions({
                             <h2 className="text-lg font-semibold">Transaction summary</h2>
                             <div className="space-y-2 text-sm">
                                 <div className="flex items-center justify-between">
+                                    <span>Items in cart</span>
+                                    <span className="font-medium">
+                                        {numberFormatter.format(cartItemCount)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
                                     <span>Subtotal</span>
                                     <span className="font-medium">{formatCurrency(totals.subtotal)}</span>
                                 </div>
@@ -986,7 +1082,14 @@ export default function EmployeeTransactions({
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span>Discount</span>
-                                    <span className="font-medium text-destructive">
+                                    <span
+                                        className={cn(
+                                            'font-medium',
+                                            discountAmount > 0
+                                                ? 'text-destructive'
+                                                : 'text-muted-foreground',
+                                        )}
+                                    >
                                         {discountAmount > 0
                                             ? `- ${formatCurrency(discountAmount)}`
                                             : formatCurrency(0)}
@@ -995,15 +1098,42 @@ export default function EmployeeTransactions({
                                 <Separator className="my-2" />
                                 <div className="flex items-center justify-between text-base font-semibold">
                                     <span>Amount due</span>
-                                    <span>{formatCurrency(amountDue)}</span>
+                                    <span
+                                        className={cn(
+                                            outstandingBalance > 0
+                                                ? 'text-destructive'
+                                                : 'text-foreground',
+                                        )}
+                                    >
+                                        {formatCurrency(amountDue)}
+                                    </span>
                                 </div>
+                                {outstandingBalance > 0 && (
+                                    <div className="flex items-center justify-between text-sm text-destructive">
+                                        <span>Outstanding</span>
+                                        <span className="font-semibold">
+                                            {formatCurrency(outstandingBalance)}
+                                        </span>
+                                    </div>
+                                )}
                                 <div className="flex items-center justify-between">
                                     <span>Amount paid</span>
-                                    <span className="font-medium">{formatCurrency(normalizedAmountPaid)}</span>
+                                    <span className="font-medium">
+                                        {formatCurrency(normalizedAmountPaid)}
+                                    </span>
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span>Change due</span>
-                                    <span className="font-medium">{formatCurrency(changeDue)}</span>
+                                    <span
+                                        className={cn(
+                                            'font-semibold',
+                                            changeDue > 0
+                                                ? 'text-emerald-600 dark:text-emerald-400'
+                                                : 'text-muted-foreground',
+                                        )}
+                                    >
+                                        {formatCurrency(changeDue)}
+                                    </span>
                                 </div>
                             </div>
                         </Card>
@@ -1254,6 +1384,49 @@ export default function EmployeeTransactions({
                                         />
                                         <InputError message={form.errors.discount_value} />
                                     </div>
+                                    {totals.total > 0 && (
+                                        <div className="space-y-2">
+                                            <p className="text-xs text-muted-foreground">
+                                                Quick discount presets
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {DISCOUNT_PERCENT_PRESETS.map((percentage) => (
+                                                    <Button
+                                                        key={`percentage-${percentage}`}
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() =>
+                                                            handleApplyPercentagePreset(percentage)
+                                                        }
+                                                    >
+                                                        {percentage}% off
+                                                    </Button>
+                                                ))}
+                                                {discountValuePresets.map((value) => (
+                                                    <Button
+                                                        key={`value-${value}`}
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => handleApplyValuePreset(value)}
+                                                    >
+                                                        -{formatCurrency(value)}
+                                                    </Button>
+                                                ))}
+                                                {(discountType || discountValueInput) && (
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={handleClearDiscount}
+                                                    >
+                                                        Clear discount
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="grid gap-3">
@@ -1291,6 +1464,33 @@ export default function EmployeeTransactions({
                                             }
                                         />
                                         <InputError message={form.errors.amount_paid} />
+                                        {quickAmountPaidOptions.length > 0 && (
+                                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                                                {quickAmountPaidOptions.map((option) => {
+                                                    const isExact =
+                                                        Math.abs(option - amountDue) < 0.01;
+
+                                                    return (
+                                                        <Button
+                                                            key={`cash-${option}`}
+                                                            type="button"
+                                                            size="sm"
+                                                            variant={isExact ? 'secondary' : 'outline'}
+                                                            onClick={() => handleQuickAmountPaid(option)}
+                                                        >
+                                                            {isExact
+                                                                ? `Exact (${formatCurrency(option)})`
+                                                                : formatCurrency(option)}
+                                                        </Button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                        {outstandingBalance > 0 && (
+                                            <p className="text-xs font-medium text-destructive">
+                                                Outstanding balance: {formatCurrency(outstandingBalance)}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
 
