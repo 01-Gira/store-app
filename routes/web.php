@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Inventory\PurchaseOrderController;
+use App\Http\Controllers\Inventory\SupplierController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Master\PermissionController;
 use App\Http\Controllers\Master\ProductController;
@@ -32,6 +34,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('products', ProductController::class)->except(['create', 'edit', 'show']);
         Route::post('products/import', [ProductController::class, 'import'])->name('products.import');
         Route::get('products/export', [ProductController::class, 'export'])->name('products.export');
+    });
+
+    Route::prefix('inventory')->name('inventory.')->group(function () {
+        Route::resource('suppliers', SupplierController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::resource('purchase-orders', PurchaseOrderController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::post('purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])
+            ->name('purchase-orders.receive');
     });
 });
 
