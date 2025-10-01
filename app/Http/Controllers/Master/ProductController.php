@@ -10,6 +10,7 @@ use App\Http\Requests\Master\UpdateProductRequest;
 use App\Imports\ProductsImport;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Supplier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redirect;
@@ -29,7 +30,7 @@ class ProductController extends Controller
         $defaultReorderPoint = (int) config('store.inventory.low_stock_threshold', 0);
 
         $products = Product::query()
-            ->with('categories')
+            ->with(['categories', 'supplier'])
             ->latest()
             ->get()
             ->map(function (Product $product) use ($defaultReorderPoint): array {
@@ -43,8 +44,16 @@ class ProductController extends Controller
                     'id' => $product->id,
                     'barcode' => $product->barcode,
                     'name' => $product->name,
+                    'supplier' => $product->supplier ? [
+                        'id' => $product->supplier->id,
+                        'name' => $product->supplier->name,
+                        'lead_time_days' => $product->supplier->lead_time_days,
+                    ] : null,
+                    'supplier_id' => $product->supplier_id,
+                    'supplier_sku' => $product->supplier_sku,
                     'stock' => $product->stock,
                     'price' => $product->price,
+                    'cost_price' => $product->cost_price,
                     'image_path' => $product->image_path,
                     'image_url' => $imageUrl,
                     'reorder_point' => $product->reorder_point,
@@ -72,10 +81,20 @@ class ProductController extends Controller
                 'name' => $category->name,
             ]);
 
+        $availableSuppliers = Supplier::query()
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Supplier $supplier): array => [
+                'id' => $supplier->id,
+                'name' => $supplier->name,
+                'lead_time_days' => $supplier->lead_time_days,
+            ]);
+
         return Inertia::render('master/products/index', [
             'products' => $products,
             'availableCategories' => $availableCategories,
             'defaultReorderPoint' => $defaultReorderPoint,
+            'availableSuppliers' => $availableSuppliers,
         ]);
     }
 
@@ -96,8 +115,11 @@ class ProductController extends Controller
             $data['image_path'] = $request->file('image')->store('products', 'public');
         }
 
+        $data['supplier_id'] = $data['supplier_id'] ?? null;
+        $data['supplier_sku'] = $data['supplier_sku'] ?? null;
         $data['reorder_point'] = $data['reorder_point'] ?? null;
         $data['reorder_quantity'] = $data['reorder_quantity'] ?? null;
+        $data['cost_price'] = $data['cost_price'] ?? null;
         unset($data['image'], $data['category_ids']);
 
         $product = Product::create($data);
@@ -136,8 +158,11 @@ class ProductController extends Controller
             $data['image_path'] = $request->file('image')->store('products', 'public');
         }
 
+        $data['supplier_id'] = $data['supplier_id'] ?? null;
+        $data['supplier_sku'] = $data['supplier_sku'] ?? null;
         $data['reorder_point'] = $data['reorder_point'] ?? null;
         $data['reorder_quantity'] = $data['reorder_quantity'] ?? null;
+        $data['cost_price'] = $data['cost_price'] ?? null;
         unset($data['image'], $data['remove_image'], $data['category_ids']);
 
         $product->update($data);

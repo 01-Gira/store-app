@@ -15,6 +15,8 @@ import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
 import {
     BookOpen,
+    ClipboardList,
+    Factory,
     Folder,
     KeyRound,
     LayoutGrid,
@@ -51,6 +53,16 @@ const mainNavItems: NavItem[] = [
         title: 'Products',
         href: '/master/products',
         icon: Package,
+    },
+    {
+        title: 'Suppliers',
+        href: '/inventory/suppliers',
+        icon: Factory,
+    },
+    {
+        title: 'Purchase Orders',
+        href: '/inventory/purchase-orders',
+        icon: ClipboardList,
     },
     {
         title: 'POS',

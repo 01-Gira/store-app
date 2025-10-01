@@ -14,6 +14,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, useForm, usePage } from '@inertiajs/react';
@@ -33,12 +40,22 @@ interface CategorySummary {
     name: string;
 }
 
+interface SupplierSummary {
+    id: number;
+    name: string;
+    lead_time_days: number;
+}
+
 interface ProductSummary {
     id: number;
     barcode: string;
     name: string;
+    supplier: SupplierSummary | null;
+    supplier_id: number | null;
+    supplier_sku: string | null;
     stock: number;
     price: string | number;
+    cost_price: string | number | null;
     image_path: string | null;
     image_url: string | null;
     reorder_point: number | null;
@@ -54,6 +71,7 @@ interface ProductsPageProps {
     products: ProductSummary[];
     availableCategories: CategorySummary[];
     defaultReorderPoint: number;
+    availableSuppliers: SupplierSummary[];
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -106,6 +124,7 @@ export default function ProductsIndex({
     products,
     availableCategories,
     defaultReorderPoint,
+    availableSuppliers,
 }: ProductsPageProps) {
     const { flash } = usePage<SharedData>().props;
     const [isEditOpen, setIsEditOpen] = useState(false);
@@ -113,19 +132,25 @@ export default function ProductsIndex({
         useState<ProductSummary | null>(null);
 
     const createForm = useForm<{
+        supplier_id: string;
         barcode: string;
         name: string;
+        supplier_sku: string;
         stock: string;
         price: string;
+        cost_price: string;
         reorder_point: string;
         reorder_quantity: string;
         image: File | null;
         category_ids: number[];
     }>({
+        supplier_id: '',
         barcode: '',
         name: '',
+        supplier_sku: '',
         stock: '0',
         price: '0.00',
+        cost_price: '',
         reorder_point: '',
         reorder_quantity: '',
         image: null,
@@ -133,20 +158,26 @@ export default function ProductsIndex({
     });
 
     const editForm = useForm<{
+        supplier_id: string;
         barcode: string;
         name: string;
+        supplier_sku: string;
         stock: string;
         price: string;
+        cost_price: string;
         reorder_point: string;
         reorder_quantity: string;
         image: File | null;
         remove_image: boolean;
         category_ids: number[];
     }>({
+        supplier_id: '',
         barcode: '',
         name: '',
+        supplier_sku: '',
         stock: '0',
         price: '0.00',
+        cost_price: '',
         reorder_point: '',
         reorder_quantity: '',
         image: null,
@@ -169,10 +200,19 @@ export default function ProductsIndex({
             setProductBeingEdited(product);
             editForm.setData((data) => ({
                 ...data,
+                supplier_id:
+                    product.supplier_id !== null
+                        ? product.supplier_id.toString()
+                        : '',
                 barcode: product.barcode,
                 name: product.name,
+                supplier_sku: product.supplier_sku ?? '',
                 stock: product.stock.toString(),
                 price: product.price.toString(),
+                cost_price:
+                    product.cost_price !== null
+                        ? product.cost_price.toString()
+                        : '',
                 reorder_point:
                     product.reorder_point !== null
                         ? product.reorder_point.toString()
@@ -358,7 +398,7 @@ export default function ProductsIndex({
                                     <InputError message={createForm.errors.name} />
                                 </div>
 
-                                <div className="grid gap-4 sm:grid-cols-2">
+                                <div className="grid gap-4 sm:grid-cols-3">
                                     <div className="space-y-2">
                                         <Label htmlFor="product-stock">Stock</Label>
                                         <Input
@@ -387,8 +427,70 @@ export default function ProductsIndex({
                                                 createForm.setData('price', event.target.value)
                                             }
                                         />
-                                            <InputError message={createForm.errors.price} />
+                                        <InputError message={createForm.errors.price} />
                                     </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="product-cost-price">Cost price</Label>
+                                        <Input
+                                            id="product-cost-price"
+                                            name="cost_price"
+                                            type="number"
+                                            min={0}
+                                            step="0.01"
+                                            value={createForm.data.cost_price}
+                                            onChange={(event) =>
+                                                createForm.setData(
+                                                    'cost_price',
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                        <InputError message={createForm.errors.cost_price} />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="product-supplier">Supplier</Label>
+                                    <Select
+                                        value={createForm.data.supplier_id}
+                                        onValueChange={(value) =>
+                                            createForm.setData('supplier_id', value)
+                                        }
+                                    >
+                                        <SelectTrigger id="product-supplier">
+                                            <SelectValue placeholder="Select a supplier" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="">No supplier</SelectItem>
+                                            {availableSuppliers.map((supplier) => (
+                                                <SelectItem
+                                                    key={supplier.id}
+                                                    value={supplier.id.toString()}
+                                                >
+                                                    {supplier.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <InputError message={createForm.errors.supplier_id} />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="product-supplier-sku">Supplier SKU</Label>
+                                    <Input
+                                        id="product-supplier-sku"
+                                        name="supplier_sku"
+                                        placeholder="Reference used by the supplier"
+                                        value={createForm.data.supplier_sku}
+                                        onChange={(event) =>
+                                            createForm.setData(
+                                                'supplier_sku',
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                    <InputError message={createForm.errors.supplier_sku} />
                                 </div>
 
                                 <div className="grid gap-4 sm:grid-cols-2">
@@ -556,6 +658,7 @@ export default function ProductsIndex({
                                     <tr>
                                         <th className="px-3 py-2">Barcode</th>
                                         <th className="px-3 py-2">Name</th>
+                                        <th className="px-3 py-2">Supplier</th>
                                         <th className="px-3 py-2 text-right">Stock</th>
                                         <th className="px-3 py-2 text-right">Reorder</th>
                                         <th className="px-3 py-2 text-right">Price</th>
@@ -568,7 +671,7 @@ export default function ProductsIndex({
                                     {products.length === 0 ? (
                                         <tr>
                                             <td
-                                                colSpan={8}
+                                                colSpan={9}
                                                 className="px-3 py-6 text-center text-sm text-muted-foreground"
                                             >
                                                 No products yet. Use the form on the left to add your first item or import from a spreadsheet.
@@ -598,6 +701,23 @@ export default function ProductsIndex({
                                                         )}
                                                         <span>{product.name}</span>
                                                     </div>
+                                                </td>
+                                                <td className="px-3 py-3">
+                                                    {product.supplier ? (
+                                                        <div className="flex flex-col gap-0.5">
+                                                            <span className="font-medium">
+                                                                {product.supplier.name}
+                                                            </span>
+                                                            {product.supplier.lead_time_days > 0 && (
+                                                                <span className="text-xs text-muted-foreground">
+                                                                    Lead time: {product.supplier.lead_time_days} day
+                                                                    {product.supplier.lead_time_days === 1 ? '' : 's'}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <Badge variant="outline">Unassigned</Badge>
+                                                    )}
                                                 </td>
                                                 <td className="px-3 py-3 text-right">
                                                     <div className="flex flex-col items-end gap-1">
@@ -736,7 +856,7 @@ export default function ProductsIndex({
                                                                         <InputError message={editForm.errors.name} />
                                                                     </div>
 
-                                                                    <div className="grid gap-4 sm:grid-cols-2">
+                                                                    <div className="grid gap-4 sm:grid-cols-3">
                                                                         <div className="space-y-2">
                                                                             <Label htmlFor="edit-stock">Stock</Label>
                                                                             <Input
@@ -773,6 +893,70 @@ export default function ProductsIndex({
                                                                             />
                                                                             <InputError message={editForm.errors.price} />
                                                                         </div>
+
+                                                                        <div className="space-y-2">
+                                                                            <Label htmlFor="edit-cost-price">Cost price</Label>
+                                                                            <Input
+                                                                                id="edit-cost-price"
+                                                                                name="cost_price"
+                                                                                type="number"
+                                                                                min={0}
+                                                                                step="0.01"
+                                                                                value={editForm.data.cost_price}
+                                                                                onChange={(event) =>
+                                                                                    editForm.setData(
+                                                                                        'cost_price',
+                                                                                        event.target.value,
+                                                                                    )
+                                                                                }
+                                                                            />
+                                                                            <InputError message={editForm.errors.cost_price} />
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="space-y-2">
+                                                                        <Label htmlFor="edit-supplier">Supplier</Label>
+                                                                        <Select
+                                                                            value={editForm.data.supplier_id}
+                                                                            onValueChange={(value) =>
+                                                                                editForm.setData(
+                                                                                    'supplier_id',
+                                                                                    value,
+                                                                                )
+                                                                            }
+                                                                        >
+                                                                            <SelectTrigger id="edit-supplier">
+                                                                                <SelectValue placeholder="Select a supplier" />
+                                                                            </SelectTrigger>
+                                                                            <SelectContent>
+                                                                                <SelectItem value="">No supplier</SelectItem>
+                                                                                {availableSuppliers.map((supplier) => (
+                                                                                    <SelectItem
+                                                                                        key={supplier.id}
+                                                                                        value={supplier.id.toString()}
+                                                                                    >
+                                                                                        {supplier.name}
+                                                                                    </SelectItem>
+                                                                                ))}
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                        <InputError message={editForm.errors.supplier_id} />
+                                                                    </div>
+
+                                                                    <div className="space-y-2">
+                                                                        <Label htmlFor="edit-supplier-sku">Supplier SKU</Label>
+                                                                        <Input
+                                                                            id="edit-supplier-sku"
+                                                                            name="supplier_sku"
+                                                                            value={editForm.data.supplier_sku}
+                                                                            onChange={(event) =>
+                                                                                editForm.setData(
+                                                                                    'supplier_sku',
+                                                                                    event.target.value,
+                                                                                )
+                                                                            }
+                                                                        />
+                                                                        <InputError message={editForm.errors.supplier_sku} />
                                                                     </div>
 
                                                                     <div className="grid gap-4 sm:grid-cols-2">
