@@ -30,6 +30,13 @@ interface CustomerSummary {
     enrolled_at?: string | null;
 }
 
+interface BrandingInfo {
+    store_name: string | null;
+    contact_details: string | null;
+    receipt_footer_text: string | null;
+    logo_url: string | null;
+}
+
 interface EmployeeTransactionsPageProps {
     ppnRate: number;
     productLookupUrl: string;
@@ -39,6 +46,7 @@ interface EmployeeTransactionsPageProps {
     customerLatestUrl: string;
     customerSearchUrl: string;
     customerStoreUrl: string;
+    branding: BrandingInfo;
 }
 
 interface CartItem extends TransactionProduct {
@@ -79,6 +87,7 @@ export default function EmployeeTransactions({
     customerLatestUrl,
     customerSearchUrl,
     customerStoreUrl,
+    branding,
 }: EmployeeTransactionsPageProps) {
     const { flash } = usePage<SharedData>().props;
     const [items, setItems] = useState<CartItem[]>([]);
@@ -678,15 +687,34 @@ export default function EmployeeTransactions({
             <Head title="Point of Sale" />
 
             <div className="space-y-6 p-4">
-                <div className="flex items-start justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl font-semibold">Employee POS</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Scan product barcodes or search manually to build a transaction.
-                        </p>
-                        <p className="mt-2 text-sm text-muted-foreground">
-                            Current PPN rate: <span className="font-medium">{ppnRate}%</span>
-                        </p>
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex flex-1 items-start gap-4">
+                        {branding.logo_url && (
+                            <img
+                                src={branding.logo_url}
+                                alt={`${branding.store_name ?? 'Store'} logo`}
+                                className="h-16 w-auto rounded-md border border-border bg-white p-2 shadow-sm"
+                            />
+                        )}
+                        <div className="space-y-3">
+                            <div className="space-y-1">
+                                <h1 className="text-2xl font-semibold">
+                                    {branding.store_name ?? 'Employee POS'}
+                                </h1>
+                                {branding.contact_details && (
+                                    <p className="whitespace-pre-line text-sm text-muted-foreground">
+                                        {branding.contact_details}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-1 text-sm text-muted-foreground">
+                                <p>Scan product barcodes or search manually to build a transaction.</p>
+                                <p>
+                                    Current PPN rate:{' '}
+                                    <span className="font-medium text-foreground">{ppnRate}%</span>
+                                </p>
+                            </div>
+                        </div>
                     </div>
                     <div className="flex flex-col items-end gap-2 text-right text-sm">
                         <Button

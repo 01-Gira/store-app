@@ -16,6 +16,10 @@ class StoreSetting extends Model
      */
     protected $fillable = [
         'ppn_rate',
+        'store_name',
+        'contact_details',
+        'logo_path',
+        'receipt_footer_text',
     ];
 
     /**
@@ -31,6 +35,10 @@ class StoreSetting extends Model
     {
         return static::query()->first() ?? static::query()->create([
             'ppn_rate' => 11.0,
+            'store_name' => 'Retail Store',
+            'contact_details' => null,
+            'logo_path' => null,
+            'receipt_footer_text' => null,
         ]);
     }
 }

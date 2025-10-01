@@ -208,7 +208,11 @@ class DashboardMetricsService
             ->filter(static fn (PurchaseOrder $order) => ($order->schedule_variance_days ?? 0) > 0)
             ->values();
 
-        $lateDeliveries = $allLateDeliveries
+        $lateCompletedDeliveries = $completedOrders
+            ->filter(static fn (PurchaseOrder $order) => ($order->schedule_variance_days ?? 0) > 0)
+            ->values();
+
+        $lateDeliveries = $lateCompletedDeliveries
             ->sortByDesc(static fn (PurchaseOrder $order) => $order->schedule_variance_days ?? 0)
             ->take(5)
             ->values()
@@ -307,7 +311,7 @@ class DashboardMetricsService
             'onTimeRate' => $completedOrders->count() > 0
                 ? round($onTimeOrders->count() / $completedOrders->count(), 4)
                 : null,
-            'lateDeliveryCount' => $allLateDeliveries->count(),
+            'lateDeliveryCount' => $lateCompletedDeliveries->count(),
             'outstandingCount' => $allOutstandingOrders->count(),
         ];
 
